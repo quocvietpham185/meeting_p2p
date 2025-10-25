@@ -1,3 +1,5 @@
+// src/interfaces/models/meeting.ts
+
 export interface User {
   id: string;
   name: string;
@@ -27,4 +29,16 @@ export interface Stats {
   totalMeetings: number;
   avgDuration: string;
   roomsCreated: number;
+}
+
+export interface MeetingFormData {
+  roomName: string;
+  roomId: string;
+  passcode: string;
+  scheduledTime: string;
+  duration: string;
+  maxParticipants: string;
+  enableRecording: boolean;
+  enableWaitingRoom: boolean;
+  inviteEmails: string;
 }

@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import { Plus, LogIn } from 'lucide-react'
 import Button from '@/components/common/Button'
+import { useRouter } from 'next/navigation'
 
 interface MeetingActionsProps {
   onCreateMeeting?: () => void
@@ -13,14 +14,20 @@ export default function MeetingActions({
   onJoinMeeting,
 }: MeetingActionsProps) {
   const [joinCode, setJoinCode] = useState('')
-
+  const router = useRouter()
   const handleJoin = () => {
     if (joinCode.trim()) {
       onJoinMeeting?.(joinCode)
       setJoinCode('')
     }
   }
-
+  const handleCreateClick = () => {
+    if (onCreateMeeting) {
+      onCreateMeeting();
+    } else {
+      router.push('/meeting');
+    }
+  };
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Create Meeting */}
@@ -40,7 +47,7 @@ export default function MeetingActions({
           </div>
         </div>
         <Button
-          onClick={onCreateMeeting}
+          onClick={handleCreateClick}
           text="Tạo phòng"
           text_font_size="text-sm"
           text_font_weight="font-semibold"

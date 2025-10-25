@@ -1,13 +1,16 @@
+
 'use client';
-
 import React from 'react';
-import { Meeting, Stats, UpcomingMeeting } from '@/interfaces/models/meeting';
-import MeetingActions from '../meeting/MeetingAction';
-import MeetingCard from '../meeting/MeetingCard';
-import UpcomingMeetings from '../meeting/UpComingMeeting';
-import StatsWidget from '../widget/StatsWidget';
+import { useRouter } from 'next/navigation';
+import MeetingCard from '@/app/meeting/MeetingCard';
+import StatsWidget from '@/app/widget/StatsWidget';
+import { Meeting, UpcomingMeeting, Stats } from '@/interfaces/models/meeting';
+import UpcomingMeetings from './meeting/UpComingMeeting';
+import MeetingActions from './meeting/MeetingAction';
 
-export default function DashboardPage() {
+export default function HomePage() {
+  const router = useRouter();
+
   // Mock data
   const upcomingMeetings: UpcomingMeeting[] = [
     {
@@ -37,7 +40,11 @@ export default function DashboardPage() {
       id: '1',
       title: 'Họp nhóm dự án Alpha',
       meetingId: '#MTG-2024-001',
-      organizer: { id: '1', name: 'Nguyễn Văn A', avatar: '/images/avatar1.png' },
+      organizer: {
+        id: '1',
+        name: 'Nguyễn Văn A',
+        avatar: '/images/avatar1.png',
+      },
       participants: 5,
       timeRemaining: '2 giờ trước',
     },
@@ -57,11 +64,39 @@ export default function DashboardPage() {
     roomsCreated: 5,
   };
 
+  const handleCreateMeeting = () => {
+    router.push('/meeting');
+  };
+
+  const handleJoinMeeting = (code: string) => {
+    console.log('Join meeting with code:', code);
+    // TODO: Validate code and join meeting
+    // router.push(`/meeting/room/${code}`);
+    alert(`Joining meeting: ${code}`);
+  };
+
+  const handleJoinMeetingCard = (id: string) => {
+    console.log('Join meeting:', id);
+    // TODO: Join meeting logic
+    // router.push(`/meeting/room/${id}`);
+    alert(`Joining meeting ID: ${id}`);
+  };
+
+  const handleShareMeeting = (id: string) => {
+    console.log('Share meeting:', id);
+    // TODO: Share meeting logic
+    const shareUrl = `${window.location.origin}/meeting/join/${id}`;
+    navigator.clipboard.writeText(shareUrl);
+    alert('Link copied to clipboard!');
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="max-w-7xl mx-auto p-6">
       {/* Welcome Section */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Chào mừng trở lại!</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          Chào mừng trở lại!
+        </h1>
         <p className="text-gray-600">
           Bắt đầu cuộc họp mới hoặc tham gia phòng hiện có.
         </p>
@@ -73,30 +108,31 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Meeting Actions */}
           <MeetingActions
-            onCreateMeeting={() => console.log('Create meeting')}
-            onJoinMeeting={(code) => console.log('Join:', code)}
+            onCreateMeeting={handleCreateMeeting}
+            onJoinMeeting={handleJoinMeeting}
           />
 
           {/* Recent Meetings */}
-          <section>
+          <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Cuộc họp gần đây</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Cuộc họp gần đây
+              </h2>
               <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
                 Xem tất cả
               </button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {recentMeetings.map((meeting) => (
                 <MeetingCard
                   key={meeting.id}
                   meeting={meeting}
-                  onJoin={(id) => console.log('Join:', id)}
-                  onShare={(id) => console.log('Share:', id)}
+                  onJoin={handleJoinMeetingCard}
+                  onShare={handleShareMeeting}
                 />
               ))}
             </div>
-          </section>
+          </div>
         </div>
 
         {/* Right Column */}
