@@ -1,35 +1,53 @@
-// components/user/layout/Sidebar.tsx
-
 'use client';
+
+import { useRouter, usePathname } from 'next/navigation';
+import {
+  Home,
+  History,
+  Calendar,
+  Monitor,
+  Users,
+  Settings,
+  LogOut,
+} from 'lucide-react';
 import React from 'react';
-import Image from 'next/image';
-import { Home, History, Calendar, Settings, Users, LogOut } from 'lucide-react';
 
 interface NavItem {
   id: string;
   label: string;
-  icon: React.ReactNode;
   href: string;
+  icon: React.ReactNode;
 }
 
+interface SidebarProps {
+  onNavigate?: (id: string) => void;
+}
+
+// 🔹 Danh sách các mục điều hướng
 const navItems: NavItem[] = [
   { id: 'home', label: 'Trang chủ', icon: <Home size={20} />, href: '/' },
   { id: 'history', label: 'Lịch sử', icon: <History size={20} />, href: '/history' },
   { id: 'schedule', label: 'Lịch', icon: <Calendar size={20} />, href: '/schedule' },
-  { id: 'devices', label: 'Thiết bị', icon: <Settings size={20} />, href: '/devices' },
+  { id: 'devices', label: 'Thiết bị', icon: <Monitor size={20} />, href: '/devices' },
   { id: 'contacts', label: 'Hồ sơ', icon: <Users size={20} />, href: '/contacts' },
-  { id: 'settings', label: 'Cài đặt', icon: <Settings size={20} />, href: '/settings' },
+  { id: 'settings', label: 'Cài đặt', icon: <Settings size={20} />, href: '/setting' },
 ];
 
-interface SidebarProps {
-  activeItem?: string;
-  onNavigate?: (id: string) => void;
-}
+export default function Sidebar({ onNavigate }: SidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
 
-export default function Sidebar({ activeItem = 'home', onNavigate }: SidebarProps) {
+  // 🔹 Xác định item đang active dựa vào pathname
+  const activeItem = navItems.find((item) => item.href === pathname)?.id || 'home';
+
+  const handleClick = (item: NavItem) => {
+    router.push(item.href);
+    onNavigate?.(item.id);
+  };
+
   return (
-    <aside className="w-48 bg-white border-r border-gray-200 flex flex-col h-screen">
-      {/* Logo */}
+    <aside className="w-56 bg-white border-r border-gray-200 flex flex-col h-screen">
+      {/* Header */}
       <div className="p-4 flex items-center gap-2">
         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-sm">M</span>
@@ -37,12 +55,12 @@ export default function Sidebar({ activeItem = 'home', onNavigate }: SidebarProp
         <span className="font-bold text-gray-900 text-lg">MeetHub</span>
       </div>
 
-      {/* Navigation */}
+      {/* Nav items */}
       <nav className="flex-1 px-2 py-4">
         {navItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => onNavigate?.(item.id)}
+            onClick={() => handleClick(item)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors ${
               activeItem === item.id
                 ? 'bg-blue-600 text-white'
