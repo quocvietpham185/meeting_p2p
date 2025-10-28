@@ -20,6 +20,7 @@ interface NavItem {
 }
 
 interface SidebarProps {
+  activeItem: string;
   onNavigate?: (id: string) => void;
 }
 
