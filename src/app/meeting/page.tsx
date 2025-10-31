@@ -2,42 +2,35 @@
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import CreateMeetingForm from './CreateMeetingForm'
-import { MeetingFormData } from '@/interfaces/models/meeting'
+import { MeetingCreatePayload } from '@/interfaces/api/meeting'
 import MainLayout from '@/components/layout/MainLayout'
+import api from '@/lib/api'
 
 export default function CreateMeetingPage() {
   const router = useRouter()
 
-  const handleStartMeeting = async (data: MeetingFormData) => {
-    console.log('Start meeting now:', data)
+  // ✅ Giờ type là MeetingCreatePayload, khớp với CreateMeetingForm
+  const handleStartMeeting = async (data: MeetingCreatePayload) => {
+    try {
+      console.log('Start meeting now:', data)
 
-    // TODO: Call API to create meeting
-    // const response = await fetch('/api/meetings/create', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data),
-    // });
-    // const result = await response.json();
+      const response = await api.post('/meetings', data)
+      const result = await response.data
 
-    // Navigate to meeting room
-    // router.push(`/meeting/room/${data.roomId}`);
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to create meeting')
+      }
 
-    alert('Meeting created! (TODO: Navigate to room)')
+      alert('Tạo cuộc họp thành công!')
+      router.push(`/meeting/room/${result.data.meetingId}`)
+    } catch (error) {
+      console.error('Error starting meeting:', error)
+      alert('Error creating meeting. Please try again.')
+    }
   }
 
-  const handleScheduleMeeting = async (data: MeetingFormData) => {
+  const handleScheduleMeeting = async (data: MeetingCreatePayload) => {
     console.log('Schedule meeting:', data)
-
-    // TODO: Call API to schedule meeting
-    // const response = await fetch('/api/meetings/schedule', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data),
-    // });
-
-    // Navigate to schedule page
-    // router.push('/schedule');
-
     alert('Meeting scheduled! (TODO: Navigate to schedule)')
   }
 

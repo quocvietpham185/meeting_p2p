@@ -32,7 +32,7 @@ export interface Stats {
 }
 
 export interface MeetingFormData {
-  roomName: string;
+  title: string;
   roomId: string;
   passcode: string;
   scheduledTime: string;

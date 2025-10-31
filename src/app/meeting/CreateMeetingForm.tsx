@@ -1,15 +1,13 @@
-// src/app/meeting/CreateMeetingForm.tsx
-
 'use client'
 import React, { useState } from 'react'
-import { RefreshCw, Calendar, Video, Users } from 'lucide-react'
+import { RefreshCw, Calendar, Video, Users, FileText } from 'lucide-react'
 import Button from '@/components/common/Button'
 import EditText from '@/components/common/EditText'
-import { MeetingFormData } from '@/interfaces/models/meeting'
+import { MeetingCreatePayload } from '@/interfaces/api/meeting'
 
 interface CreateMeetingFormProps {
-  onStartMeeting: (data: MeetingFormData) => void
-  onScheduleMeeting: (data: MeetingFormData) => void
+  onStartMeeting: (data: MeetingCreatePayload) => void
+  onScheduleMeeting: (data: MeetingCreatePayload) => void
 }
 
 function generateRoomId(): string {
@@ -21,9 +19,9 @@ export default function CreateMeetingForm({
   onStartMeeting,
   onScheduleMeeting,
 }: CreateMeetingFormProps) {
-  const [formData, setFormData] = useState<MeetingFormData>({
-    roomName: '',
-    roomId: generateRoomId(),
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
     passcode: '',
     scheduledTime: '',
     duration: '30',
@@ -36,7 +34,7 @@ export default function CreateMeetingForm({
   const [isLoading, setIsLoading] = useState(false)
 
   const handleInputChange =
-    (field: keyof MeetingFormData) =>
+    (field: keyof typeof formData) =>
     (
       e: React.ChangeEvent<
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -62,16 +60,41 @@ export default function CreateMeetingForm({
     }))
   }
 
+  // ✅ Tự động tính end_time dựa trên start_time + duration
+  const calculateEndTime = (start: string, durationMinutes: string) => {
+    if (!start) return ''
+    const startDate = new Date(start)
+    const endDate = new Date(
+      startDate.getTime() + Number(durationMinutes) * 60000
+    )
+    return endDate.toISOString()
+  }
+
+  // ✅ Hàm xử lý bắt đầu cuộc họp ngay
   const handleStartMeeting = async () => {
-    if (!formData.roomName.trim()) {
+    if (!formData.title.trim()) {
       alert('Vui lòng nhập tên phòng!')
       return
     }
 
     setIsLoading(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      onStartMeeting(formData)
+      const now = new Date()
+      const endTime = calculateEndTime(now.toISOString(), formData.duration)
+
+      const payload: MeetingCreatePayload = {
+        title: formData.title,
+        description: formData.description || '',
+        passcode: formData.passcode || null,
+        start_time: now.toISOString(),
+        end_time: endTime,
+        duration: Number(formData.duration),
+        max_participants: Number(formData.maxParticipants),
+        enable_recording: formData.enableRecording,
+        enable_waiting_room: formData.enableWaitingRoom,
+      }
+
+      onStartMeeting(payload)
     } catch (error) {
       console.error('Error:', error)
       alert('Có lỗi xảy ra!')
@@ -80,12 +103,12 @@ export default function CreateMeetingForm({
     }
   }
 
+  // ✅ Hàm xử lý lên lịch cuộc họp
   const handleScheduleMeeting = async () => {
-    if (!formData.roomName.trim()) {
+    if (!formData.title.trim()) {
       alert('Vui lòng nhập tên phòng!')
       return
     }
-
     if (!formData.scheduledTime) {
       alert('Vui lòng chọn thời gian!')
       return
@@ -93,8 +116,22 @@ export default function CreateMeetingForm({
 
     setIsLoading(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      onScheduleMeeting(formData)
+      const startTime = new Date(formData.scheduledTime).toISOString()
+      const endTime = calculateEndTime(startTime, formData.duration)
+
+      const payload: MeetingCreatePayload = {
+        title: formData.title,
+        description: formData.description || '',
+        passcode: formData.passcode || null,
+        start_time: startTime,
+        end_time: endTime,
+        duration: Number(formData.duration),
+        max_participants: Number(formData.maxParticipants),
+        enable_recording: formData.enableRecording,
+        enable_waiting_room: formData.enableWaitingRoom,
+      }
+
+      onScheduleMeeting(payload)
     } catch (error) {
       console.error('Error:', error)
       alert('Có lỗi xảy ra!')
@@ -105,28 +142,28 @@ export default function CreateMeetingForm({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-      {/* Header */}
+      {/* Header */}{' '}
       <div className="mb-8">
+        {' '}
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Create Meeting
-        </h1>
+          Tạo cuộc họp mới{' '}
+        </h1>{' '}
         <p className="text-gray-600">
-          Set up a new meeting room or schedule one for later
-        </p>
+          Thiết lập phòng họp mới hoặc lên lịch cho sau{' '}
+        </p>{' '}
       </div>
-
       {/* Form */}
       <div className="space-y-6">
-        {/* Room Name */}
+        {/* Tên phòng */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Room Name<span className="text-red-500">*</span>
+            Tên phòng<span className="text-red-500">*</span>
           </label>
           <EditText
             type="text"
-            placeholder="Enter meeting room name"
-            value={formData.roomName}
-            onChange={handleInputChange('roomName')}
+            placeholder="Nhập tên phòng họp"
+            value={formData.title}
+            onChange={handleInputChange('title')}
             text_font_size="text-base"
             text_color="text-gray-900"
             fill_background_color="bg-white"
@@ -137,46 +174,37 @@ export default function CreateMeetingForm({
           />
         </div>
 
-        {/* Room ID and Passcode */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Room ID */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Room ID
-            </label>
-            <div className="relative">
-              <EditText
-                type="text"
-                value={formData.roomId}
-                onChange={handleInputChange('roomId')}
-                text_font_size="text-base"
-                text_color="text-gray-900"
-                fill_background_color="bg-gray-50"
-                border_border="border border-gray-300"
-                border_border_radius="rounded-lg"
-                padding="py-3 px-4 pr-12"
-                className="w-full focus:ring-blue-500 focus:border-blue-500"
-                readOnly
-              />
-              <button
-                type="button"
-                onClick={handleRefreshRoomId}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                aria-label="Refresh Room ID"
-              >
-                <RefreshCw size={18} />
-              </button>
-            </div>
+        {/* Mô tả cuộc họp */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Mô tả cuộc họp
+          </label>
+          <div className="relative">
+            <textarea
+              placeholder="Nhập nội dung, mục tiêu hoặc ghi chú cho cuộc họp"
+              value={formData.description}
+              onChange={handleInputChange('description')}
+              rows={3}
+              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900 resize-none"
+            />
+            <FileText
+              size={18}
+              className="absolute right-3 top-3 text-gray-400 pointer-events-none"
+            />
           </div>
+        </div>
 
-          {/* Passcode */}
+        {/* Room ID và Passcode */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Passcode (Optional)
+              Mật khẩu (tuỳ chọn)
             </label>
             <EditText
               type="text"
-              placeholder="Enter meeting passcode"
+              placeholder="Nhập mật khẩu phòng họp"
               value={formData.passcode}
               onChange={handleInputChange('passcode')}
               text_font_size="text-base"
@@ -190,12 +218,11 @@ export default function CreateMeetingForm({
           </div>
         </div>
 
-        {/* Scheduled Time and Duration */}
+        {/* Thời gian & Thời lượng */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Scheduled Time */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Scheduled Time (Optional)
+              Thời gian bắt đầu (tuỳ chọn)
             </label>
             <div className="relative">
               <input
@@ -211,30 +238,29 @@ export default function CreateMeetingForm({
             </div>
           </div>
 
-          {/* Duration */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Duration (Minutes)
+              Thời lượng (phút)
             </label>
             <select
               value={formData.duration}
               onChange={handleInputChange('duration')}
               className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
             >
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="45">45 minutes</option>
-              <option value="60">1 hour</option>
-              <option value="90">1.5 hours</option>
-              <option value="120">2 hours</option>
+              <option value="15">15 phút</option>
+              <option value="30">30 phút</option>
+              <option value="45">45 phút</option>
+              <option value="60">1 giờ</option>
+              <option value="90">1.5 giờ</option>
+              <option value="120">2 giờ</option>
             </select>
           </div>
         </div>
 
-        {/* Max Participants */}
+        {/* Số người tối đa */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Max Participants
+            Số người tham gia tối đa
           </label>
           <EditText
             type="number"
@@ -250,9 +276,8 @@ export default function CreateMeetingForm({
           />
         </div>
 
-        {/* Toggle Options */}
+        {/* Bật ghi hình & phòng chờ */}
         <div className="space-y-4 pt-2">
-          {/* Enable Recording */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
@@ -263,10 +288,10 @@ export default function CreateMeetingForm({
               </div>
               <div>
                 <h4 className="text-sm font-medium text-gray-900">
-                  Enable Recording
+                  Bật ghi hình
                 </h4>
                 <p className="text-xs text-gray-500">
-                  Automatically record this meeting
+                  Tự động ghi lại cuộc họp
                 </p>
               </div>
             </div>
@@ -285,7 +310,6 @@ export default function CreateMeetingForm({
             </button>
           </div>
 
-          {/* Enable Waiting Room */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
@@ -296,10 +320,10 @@ export default function CreateMeetingForm({
               </div>
               <div>
                 <h4 className="text-sm font-medium text-gray-900">
-                  Enable Waiting Room
+                  Bật phòng chờ
                 </h4>
                 <p className="text-xs text-gray-500">
-                  Admit participants manually
+                  Duyệt thủ công người tham gia
                 </p>
               </div>
             </div>
@@ -319,29 +343,29 @@ export default function CreateMeetingForm({
           </div>
         </div>
 
-        {/* Invite Participants */}
+        {/* Mời người tham gia */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Invite Participants (Optional)
+            Mời người tham gia (tuỳ chọn)
           </label>
           <textarea
-            placeholder="Enter email addresses separated by commas&#10;example@domain.com, user@company.com"
+            placeholder="Nhập email, cách nhau bằng dấu phẩy"
             value={formData.inviteEmails}
             onChange={handleInputChange('inviteEmails')}
             rows={3}
             className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900 resize-none"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Separate multiple emails with commas
+            Ví dụ: abc@gmail.com, xyz@abc.com
           </p>
         </div>
 
-        {/* Action Buttons */}
+        {/* Nút hành động */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
           <Button
             onClick={handleStartMeeting}
             disabled={isLoading}
-            text={isLoading ? 'Creating...' : 'Start Meeting Now'}
+            text={isLoading ? 'Đang tạo...' : 'Bắt đầu ngay'}
             text_font_size="text-base"
             text_font_weight="font-semibold"
             text_color="text-white"
@@ -351,13 +375,13 @@ export default function CreateMeetingForm({
             className="w-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Video size={18} />
-            <span>{isLoading ? 'Creating...' : 'Start Meeting Now'}</span>
+            <span>{isLoading ? 'Đang tạo...' : 'Bắt đầu ngay'}</span>
           </Button>
 
           <Button
             onClick={handleScheduleMeeting}
             disabled={isLoading}
-            text={isLoading ? 'Scheduling...' : 'Schedule Meeting'}
+            text={isLoading ? 'Đang lên lịch...' : 'Lên lịch cuộc họp'}
             text_font_size="text-base"
             text_font_weight="font-semibold"
             text_color="text-blue-600"
@@ -368,7 +392,7 @@ export default function CreateMeetingForm({
             className="w-full hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Calendar size={18} />
-            <span>{isLoading ? 'Scheduling...' : 'Schedule Meeting'}</span>
+            <span>{isLoading ? 'Đang lên lịch...' : 'Lên lịch cuộc họp'}</span>
           </Button>
         </div>
       </div>
