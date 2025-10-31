@@ -1,10 +1,15 @@
 'use client'
+
 import { useState } from 'react'
 import Image from 'next/image'
 import Button from '@/components/common/Button'
 import EditText from '@/components/common/EditText'
 import CheckBox from '@/components/common/CheckBox'
 import Link from '@/components/common/Link'
+import api from '@/lib/api'
+import Cookies from 'js-cookie'
+import axios from 'axios'
+import { useRouter } from 'next/navigation'
 
 interface FormData {
   email: string
@@ -13,14 +18,17 @@ interface FormData {
 }
 
 export default function SignInPage() {
+  const router = useRouter()
   const [formData, setFormData] = useState<FormData>({
     email: '',
     password: '',
     rememberMe: false,
   })
 
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [showPassword, setShowPassword] = useState<boolean>(false)
+  const [message, setMessage] = useState('')
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleInputChange =
     (field: keyof FormData) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,34 +42,59 @@ export default function SignInPage() {
       }))
     }
 
-  const handleSignIn = async (): Promise<void> => {
-    setIsLoading(true)
+  // 🟦 Đăng nhập bằng email
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (googleLoading) return // không cho đăng nhập nếu Google đang load
+
+    setEmailLoading(true)
+    setMessage('')
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      alert('Sign In Successful!')
-    } catch (error) {
+      const res = await api.post('/auth/signin', formData)
+
+      // ✅ Lưu token vào cookie
+      Cookies.set('token', res.data.data.token, { expires: 7 })
+
+      // ✅ Thông báo
+      setMessage('Đăng nhập thành công!')
+
+      // ✅ Chuyển hướng
+      setTimeout(() => router.push('/'), 1000)
+    } catch (error: unknown) {
       console.error('Sign In Error:', error)
-      alert('Sign In Failed!')
+
+      if (axios.isAxiosError(error)) {
+        setMessage(error.response?.data?.message || 'Email hoặc mật khẩu không đúng')
+      } else if (error instanceof Error) {
+        setMessage(error.message)
+      } else {
+        setMessage('Đăng nhập thất bại, vui lòng thử lại!')
+      }
     } finally {
-      setIsLoading(false)
+      setEmailLoading(false)
     }
   }
 
-  const handleGoogleSignIn = async (): Promise<void> => {
-    setIsLoading(true)
+  // 🟥 Đăng nhập bằng Google
+  const handleGoogleSignIn = async () => {
+    if (emailLoading) return // không cho đăng nhập nếu đang load email
+
+    setGoogleLoading(true)
+    setMessage('')
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      alert('Google Sign In Successful!')
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      setMessage('Google Sign-In thành công!')
+      router.push('/')
     } catch (error) {
-      console.error('Google Sign In Error:', error)
-      alert('Google Sign In Failed!')
+      console.error('Google Sign-In Error:', error)
+      setMessage('Đăng nhập Google thất bại!')
     } finally {
-      setIsLoading(false)
+      setGoogleLoading(false)
     }
   }
 
-  const handleForgotPassword = (): void => {
-      window.location.href = '/auth/forgot_password';
+  const handleForgotPassword = () => {
+    router.push('/auth/forgot_password')
   }
 
   return (
@@ -69,7 +102,7 @@ export default function SignInPage() {
       {/* Left Section - Sign In Form */}
       <section className="w-full lg:w-1/2 flex justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-lg">
-          {/* Logo and Brand */}
+          {/* Logo */}
           <div className="flex flex-col items-center gap-6 mb-8">
             <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center p-3">
               <Image
@@ -85,220 +118,130 @@ export default function SignInPage() {
           {/* Welcome Section */}
           <div className="flex flex-col items-center gap-2 mb-8">
             <h2 className="text-3xl font-extrabold text-gray-900 text-center">
-              Chào mừng trở lại{' '}
+              Chào mừng trở lại
             </h2>
             <p className="text-base text-gray-600 text-center">
               Đăng nhập vào tài khoản của bạn để tiếp tục
             </p>
           </div>
 
-          {/* Sign In Form */}
-          <div className="flex flex-col gap-6">
+          {/* Form */}
+          <form className="flex flex-col gap-6" onSubmit={handleSignIn}>
             <div className="flex flex-col gap-5">
-              {/* Email Field */}
+              {/* Email */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Email
-                </label>
-                <div className="relative">
-                  <EditText
-                    type="email"
-                    placeholder="Enter your email (e.g., viet@example.com)"
-                    value={formData.email}
-                    onChange={handleInputChange('email')}
-                    text_font_size="text-base"
-                    text_color="text-gray-900"
-                    fill_background_color="bg-white"
-                    border_border="border border-gray-300"
-                    border_border_radius="rounded-lg"
-                    padding="py-3 px-4"
-                    className="w-full focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                    <Image
-                      src="/images/img_i.svg"
-                      alt=""
-                      width={16}
-                      height={20}
-                    />
-                  </div>
-                </div>
+                <label className="text-sm font-medium text-gray-700">Email</label>
+                <EditText
+                  type="email"
+                  placeholder="Nhập email của bạn"
+                  value={formData.email}
+                  onChange={handleInputChange('email')}
+                  className="w-full"
+                />
               </div>
 
-              {/* Password Field with Toggle */}
+              {/* Password */}
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-gray-700">
-                  Password
+                  Mật khẩu
                 </label>
                 <div className="relative">
                   <EditText
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="At least 8 characters"
+                    placeholder="Nhập mật khẩu"
                     value={formData.password}
                     onChange={handleInputChange('password')}
-                    text_font_size="text-base"
-                    text_color="text-gray-900"
-                    fill_background_color="bg-white"
-                    border_border="border border-gray-300"
-                    border_border_radius="rounded-lg"
-                    padding="py-3 px-4 pr-12"
-                    className="w-full focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showPassword ? (
-                      // Eye Slash Icon - Ẩn mật khẩu
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                        <line
-                          x1="1"
-                          y1="1"
-                          x2="23"
-                          y2="23"
-                        />
-                      </svg>
-                    ) : (
-                      // Eye Icon - Hiện mật khẩu
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="3"
-                        />
-                      </svg>
-                    )}
+                    {showPassword ? '🙈' : '👁️'}
                   </button>
                 </div>
               </div>
 
-              {/* Remember Me and Forgot Password */}
+              {/* Remember + Forgot */}
               <div className="flex justify-between items-center text-sm">
                 <CheckBox
                   checked={formData.rememberMe}
                   onChange={handleInputChange('rememberMe')}
-                  text="Remember me"
-                  text_font_size="text-sm"
-                  text_color="text-gray-700"
-                  layout_gap="8px"
+                  text="Ghi nhớ đăng nhập"
                 />
                 <button
                   type="button"
                   onClick={handleForgotPassword}
-                  className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors duration-200"
+                  className="text-blue-600 hover:underline"
                 >
-                  Forgot password?
+                  Quên mật khẩu?
                 </button>
               </div>
 
-              {/* Sign In Button */}
+              {/* Buttons */}
               <Button
-                onClick={handleSignIn}
-                disabled={isLoading}
-                text={isLoading ? 'Signing In...' : 'Đăng nhập'}
-                text_font_size="text-base"
-                text_font_weight="font-semibold"
-                text_line_height="leading-6"
-                text_color="text-white"
-                fill_background_color="bg-blue-600"
-                border_border_radius="rounded-lg"
-                padding="py-3 px-4"
-                className="w-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                type="submit"
+                disabled={emailLoading || googleLoading}
+                text={emailLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+                className="w-full bg-blue-600 text-white hover:bg-blue-700"
               />
-
-              {/* Google Sign In Button */}
+              
               <Button
                 onClick={handleGoogleSignIn}
-                disabled={isLoading}
+                disabled={googleLoading || emailLoading}
                 text={
-                  isLoading
-                    ? 'Signing In with Google...'
-                    : 'Sign in with Google — fast and secure'
+                  googleLoading
+                    ? 'Đang đăng nhập với Google...'
+                    : 'Đăng nhập bằng Google'
                 }
-                text_font_size="text-base"
-                text_font_weight="font-medium"
-                text_line_height="leading-6"
-                text_color="text-gray-700"
-                fill_background_color="bg-white"
-                border_border="border border-gray-300"
-                border_border_radius="rounded-lg"
-                padding="py-3 px-4 pl-14"
-                layout_gap="14px"
-                className="w-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2 transition-colors duration-200 relative disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Image
-                  src="/images/img_i_red_500.svg"
-                  alt="Google"
-                  width={20}
-                  height={20}
-                  className="absolute left-4 top-1/2 -translate-y-1/2"
-                />
-                {isLoading
-                  ? 'Signing In with Google...'
-                  : 'Sign in with Google — fast and secure'}
-              </Button>
+                className="w-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+              />
             </div>
+
+            {/* Message */}
+            {message && (
+              <p
+                className={`mt-4 text-center text-sm ${
+                  message.includes('thành công')
+                    ? 'text-green-600'
+                    : 'text-red-600'
+                }`}
+              >
+                {message}
+              </p>
+            )}
 
             {/* Sign Up Link */}
             <div className="text-center mt-6">
               <p className="text-base text-gray-600">
-                {`Don't have an account?`}{' '}
+                Chưa có tài khoản?{' '}
                 <Link
                   href="/auth/signup"
                   variant="button"
-                  text_font_weight="font-bold"
-                  className="text-blue-700"
+                  className="text-blue-700 font-bold"
                 >
-                  Đăng kí ngay
+                  Đăng ký ngay
                 </Link>
               </p>
             </div>
-          </div>
+          </form>
         </div>
       </section>
 
-      {/* Right Section - Promotional Content */}
+      {/* Right Section */}
       <section className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 justify-center items-center p-12">
-        <div className="flex flex-col items-center text-white text-center max-w-lg">
-          <div className="w-80 h-80 rounded-2xl overflow-hidden shadow-2xl mb-8 transform hover:scale-105 transition-transform duration-300 ease-in-out">
-            <Image
-              src="/images/img_img.png"
-              alt="Video meeting participants grid showing team collaboration"
-              width={320}
-              height={320}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <h3 className="text-4xl font-extrabold mb-4 leading-tight">
-            Kết nối với nhóm của bạn{' '}
-          </h3>
-          <p className="text-lg text-blue-100 leading-relaxed">
-            Trải nghiệm các cuộc họp video liền mạch với chất lượng rõ nét và
-            cộng tác hiệu quả.{' '}
+        <div className="text-white text-center max-w-lg">
+          <Image
+            src="/images/img_img.png"
+            alt="Video meeting"
+            width={320}
+            height={320}
+            className="mx-auto rounded-2xl shadow-2xl mb-8"
+          />
+          <h3 className="text-4xl font-extrabold mb-4">Kết nối với nhóm của bạn</h3>
+          <p className="text-lg text-blue-100">
+            Trải nghiệm các cuộc họp video liền mạch với chất lượng rõ nét và cộng tác hiệu quả.
           </p>
         </div>
       </section>
