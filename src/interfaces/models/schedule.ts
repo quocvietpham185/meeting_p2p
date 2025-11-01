@@ -28,5 +28,8 @@ export interface Participant {
   avatar: string;
   status: 'accepted' | 'pending' | 'declined';
 }
-
+interface ScheduleApiResponse {
+  success: boolean;
+  data: ScheduledMeeting[];
+}
 export type ViewMode = 'month' | 'week' | 'day' | 'list';

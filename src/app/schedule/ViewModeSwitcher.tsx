@@ -1,13 +1,13 @@
-// src/app/schedule/ViewModeSwitcher.tsx
+// src/app/schedule/ViewModeSwitcher.tsx - UPDATED
 
-'use client';
-import React from 'react';
-import { Calendar, List, Clock } from 'lucide-react';
-import { ViewMode } from '@/interfaces/models/schedule';
+'use client'
+import React from 'react'
+import { Calendar, List, Clock, CalendarDays } from 'lucide-react'
+import { ViewMode } from '@/interfaces/models/schedule'
 
 interface ViewModeSwitcherProps {
-  currentView: ViewMode;
-  onViewChange: (view: ViewMode) => void;
+  currentView: ViewMode
+  onViewChange: (view: ViewMode) => void
 }
 
 export default function ViewModeSwitcher({
@@ -16,12 +16,13 @@ export default function ViewModeSwitcher({
 }: ViewModeSwitcherProps) {
   const views: { mode: ViewMode; icon: React.ReactNode; label: string }[] = [
     { mode: 'month', icon: <Calendar size={16} />, label: 'Month' },
-    { mode: 'week', icon: <Clock size={16} />, label: 'Week' },
+    { mode: 'week', icon: <CalendarDays size={16} />, label: 'Week' },
+    { mode: 'day', icon: <Clock size={16} />, label: 'Day' },
     { mode: 'list', icon: <List size={16} />, label: 'List' },
-  ];
+  ]
 
   return (
-    <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+    <div className="flex gap-2 bg-gray-100 p-1 rounded-lg inline-flex">
       {views.map((view) => (
         <button
           key={view.mode}
@@ -37,5 +38,5 @@ export default function ViewModeSwitcher({
         </button>
       ))}
     </div>
-  );
+  )
 }

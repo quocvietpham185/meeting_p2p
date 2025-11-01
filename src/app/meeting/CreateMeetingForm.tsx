@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react'
-import { RefreshCw, Calendar, Video, Users, FileText } from 'lucide-react'
+import { Calendar, Video, Users, FileText } from 'lucide-react'
 import Button from '@/components/common/Button'
 import EditText from '@/components/common/EditText'
 import { MeetingCreatePayload } from '@/interfaces/api/meeting'
@@ -8,11 +8,6 @@ import { MeetingCreatePayload } from '@/interfaces/api/meeting'
 interface CreateMeetingFormProps {
   onStartMeeting: (data: MeetingCreatePayload) => void
   onScheduleMeeting: (data: MeetingCreatePayload) => void
-}
-
-function generateRoomId(): string {
-  const randomNum = Math.floor(100000 + Math.random() * 900000)
-  return `MTG-${randomNum}`
 }
 
 export default function CreateMeetingForm({
@@ -29,6 +24,10 @@ export default function CreateMeetingForm({
     enableRecording: false,
     enableWaitingRoom: true,
     inviteEmails: '',
+    recurrence_type: 'none',
+    recurrence_interval: '1', // khoảng cách giữa các lần lặp
+    recurrence_days: [] as string[], // array các ngày trong tuần
+    end_date: '',
   })
 
   const [isLoading, setIsLoading] = useState(false)
@@ -40,9 +39,13 @@ export default function CreateMeetingForm({
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
       >
     ) => {
+      const value =
+        e.target.type === 'checkbox'
+          ? (e.target as HTMLInputElement).checked
+          : e.target.value
       setFormData((prev) => ({
         ...prev,
-        [field]: e.target.value,
+        [field]: value,
       }))
     }
 
@@ -53,14 +56,6 @@ export default function CreateMeetingForm({
     }))
   }
 
-  const handleRefreshRoomId = () => {
-    setFormData((prev) => ({
-      ...prev,
-      roomId: generateRoomId(),
-    }))
-  }
-
-  // ✅ Tự động tính end_time dựa trên start_time + duration
   const calculateEndTime = (start: string, durationMinutes: string) => {
     if (!start) return ''
     const startDate = new Date(start)
@@ -70,70 +65,67 @@ export default function CreateMeetingForm({
     return endDate.toISOString()
   }
 
-  // ✅ Hàm xử lý bắt đầu cuộc họp ngay
   const handleStartMeeting = async () => {
-    if (!formData.title.trim()) {
-      alert('Vui lòng nhập tên phòng!')
-      return
-    }
-
+    if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
     setIsLoading(true)
     try {
-      const now = new Date()
-      const endTime = calculateEndTime(now.toISOString(), formData.duration)
+      const now = new Date().toISOString()
+      const end_time = calculateEndTime(now, formData.duration)
 
       const payload: MeetingCreatePayload = {
         title: formData.title,
         description: formData.description || '',
         passcode: formData.passcode || null,
-        start_time: now.toISOString(),
-        end_time: endTime,
+        start_time: now,
+        end_time,
         duration: Number(formData.duration),
         max_participants: Number(formData.maxParticipants),
         enable_recording: formData.enableRecording,
         enable_waiting_room: formData.enableWaitingRoom,
+        inviteEmails: formData.inviteEmails,
+        recurrence_type: formData.recurrence_type,
+        recurrence_interval: formData.recurrence_interval,
+        recurrence_days: formData.recurrence_days.join(','), // gửi dạng chuỗi
+        end_date: formData.end_date || null,
       }
 
       onStartMeeting(payload)
     } catch (error) {
-      console.error('Error:', error)
+      console.error(error)
       alert('Có lỗi xảy ra!')
     } finally {
       setIsLoading(false)
     }
   }
 
-  // ✅ Hàm xử lý lên lịch cuộc họp
   const handleScheduleMeeting = async () => {
-    if (!formData.title.trim()) {
-      alert('Vui lòng nhập tên phòng!')
-      return
-    }
-    if (!formData.scheduledTime) {
-      alert('Vui lòng chọn thời gian!')
-      return
-    }
-
+    if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
+    if (!formData.scheduledTime) return alert('Vui lòng chọn thời gian!')
     setIsLoading(true)
     try {
-      const startTime = new Date(formData.scheduledTime).toISOString()
-      const endTime = calculateEndTime(startTime, formData.duration)
+      const start_time = new Date(formData.scheduledTime).toISOString()
+      const end_time = calculateEndTime(start_time, formData.duration)
 
       const payload: MeetingCreatePayload = {
         title: formData.title,
         description: formData.description || '',
         passcode: formData.passcode || null,
-        start_time: startTime,
-        end_time: endTime,
+        start_time,
+        end_time,
         duration: Number(formData.duration),
         max_participants: Number(formData.maxParticipants),
         enable_recording: formData.enableRecording,
         enable_waiting_room: formData.enableWaitingRoom,
+        inviteEmails: formData.inviteEmails || '',
+        recurrence_type: formData.recurrence_type,
+        recurrence_interval: formData.recurrence_interval,
+        recurrence_days: formData.recurrence_days.join(','), // gửi dạng chuỗi
+        end_date: formData.end_date || null,
       }
 
       onScheduleMeeting(payload)
     } catch (error) {
-      console.error('Error:', error)
+      console.error(error)
       alert('Có lỗi xảy ra!')
     } finally {
       setIsLoading(false)
@@ -142,17 +134,15 @@ export default function CreateMeetingForm({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-      {/* Header */}{' '}
       <div className="mb-8">
-        {' '}
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Tạo cuộc họp mới{' '}
-        </h1>{' '}
+          Tạo cuộc họp mới
+        </h1>
         <p className="text-gray-600">
-          Thiết lập phòng họp mới hoặc lên lịch cho sau{' '}
-        </p>{' '}
+          Thiết lập phòng họp mới hoặc lên lịch cho sau
+        </p>
       </div>
-      {/* Form */}
+
       <div className="space-y-6">
         {/* Tên phòng */}
         <div>
@@ -174,7 +164,7 @@ export default function CreateMeetingForm({
           />
         </div>
 
-        {/* Mô tả cuộc họp */}
+        {/* Mô tả */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Mô tả cuộc họp
@@ -194,31 +184,7 @@ export default function CreateMeetingForm({
           </div>
         </div>
 
-        {/* Room ID và Passcode */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Mật khẩu (tuỳ chọn)
-            </label>
-            <EditText
-              type="text"
-              placeholder="Nhập mật khẩu phòng họp"
-              value={formData.passcode}
-              onChange={handleInputChange('passcode')}
-              text_font_size="text-base"
-              text_color="text-gray-900"
-              fill_background_color="bg-white"
-              border_border="border border-gray-300"
-              border_border_radius="rounded-lg"
-              padding="py-3 px-4"
-              className="w-full focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-
-        {/* Thời gian & Thời lượng */}
+        {/* Thời gian & thời lượng */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -256,6 +222,64 @@ export default function CreateMeetingForm({
             </select>
           </div>
         </div>
+
+        {/* Lặp lại */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Lặp lại
+          </label>
+          <select
+            value={formData.recurrence_type}
+            onChange={handleInputChange('recurrence_type')}
+            className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
+          >
+            <option value="none">Không lặp lại</option>
+            <option value="daily">Hàng ngày</option>
+            <option value="weekly">Hàng tuần</option>
+            <option value="monthly">Hàng tháng</option>
+          </select>
+        </div>
+
+        {/* Chọn ngày trong tuần nếu lặp hàng tuần */}
+        {formData.recurrence_type === 'weekly' && (
+          <div className="mt-2 flex gap-2 flex-wrap">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <label
+                key={day}
+                className="flex items-center gap-1"
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.recurrence_days.includes(day)}
+                  onChange={() => {
+                    setFormData((prev) => {
+                      const days = prev.recurrence_days.includes(day)
+                        ? prev.recurrence_days.filter((d) => d !== day)
+                        : [...prev.recurrence_days, day]
+                      return { ...prev, recurrence_days: days }
+                    })
+                  }}
+                />
+                {day}
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Ngày kết thúc lặp */}
+        {formData.recurrence_type !== 'none' && (
+          <div className="mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Ngày kết thúc lặp lại
+            </label>
+            <input
+              type="date"
+              value={formData.end_date}
+              onChange={handleInputChange('end_date')}
+              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
+            />
+          </div>
+        )}
 
         {/* Số người tối đa */}
         <div>
