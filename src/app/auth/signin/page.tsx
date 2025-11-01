@@ -24,7 +24,7 @@ export default function SignInPage() {
     password: '',
     rememberMe: false,
   })
-  
+
   const [message, setMessage] = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -53,18 +53,25 @@ export default function SignInPage() {
       const res = await api.post('/auth/signin', formData)
 
       // ✅ Lưu token vào cookie
-      Cookies.set('token', res.data.data.token, { expires: 7 })
+      Cookies.set('token', res.data.data.token, {
+        expires: 7,
+        path: '/',
+        sameSite: 'strict',
+        secure: false,
+      })
 
       // ✅ Thông báo
       setMessage('Đăng nhập thành công!')
 
       // ✅ Chuyển hướng
-      setTimeout(() => router.push('/'), 1000)
+      setTimeout(() => router.push('/'), 500)
     } catch (error: unknown) {
       console.error('Sign In Error:', error)
 
       if (axios.isAxiosError(error)) {
-        setMessage(error.response?.data?.message || 'Email hoặc mật khẩu không đúng')
+        setMessage(
+          error.response?.data?.message || 'Email hoặc mật khẩu không đúng'
+        )
       } else if (error instanceof Error) {
         setMessage(error.message)
       } else {
@@ -107,12 +114,12 @@ export default function SignInPage() {
             <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center p-3">
               <Image
                 src="/images/img_div.svg"
-                alt="VideoMeet logo"
+                alt="Meethub logo"
                 width={24}
                 height={24}
               />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">VideoMeet</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Meethub</h1>
           </div>
 
           {/* Welcome Section */}
@@ -126,11 +133,16 @@ export default function SignInPage() {
           </div>
 
           {/* Form */}
-          <form className="flex flex-col gap-6" onSubmit={handleSignIn}>
+          <form
+            className="flex flex-col gap-6"
+            onSubmit={handleSignIn}
+          >
             <div className="flex flex-col gap-5">
               {/* Email */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700">Email</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Email
+                </label>
                 <EditText
                   type="email"
                   placeholder="Nhập email của bạn"
@@ -186,7 +198,7 @@ export default function SignInPage() {
                 text={emailLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
                 className="w-full bg-blue-600 text-white hover:bg-blue-700"
               />
-              
+
               <Button
                 onClick={handleGoogleSignIn}
                 disabled={googleLoading || emailLoading}
@@ -234,14 +246,17 @@ export default function SignInPage() {
         <div className="text-white text-center max-w-lg">
           <Image
             src="/images/img_img.png"
-            alt="Video meeting"
+            alt="Meethub meeting"
             width={320}
             height={320}
             className="mx-auto rounded-2xl shadow-2xl mb-8"
           />
-          <h3 className="text-4xl font-extrabold mb-4">Kết nối với nhóm của bạn</h3>
+          <h3 className="text-4xl font-extrabold mb-4">
+            Kết nối với nhóm của bạn
+          </h3>
           <p className="text-lg text-blue-100">
-            Trải nghiệm các cuộc họp video liền mạch với chất lượng rõ nét và cộng tác hiệu quả.
+            Trải nghiệm các cuộc họp video liền mạch với chất lượng rõ nét và
+            cộng tác hiệu quả.
           </p>
         </div>
       </section>

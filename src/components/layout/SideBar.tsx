@@ -11,6 +11,8 @@ import {
   LogOut,
 } from 'lucide-react';
 import React from 'react';
+import Swal from 'sweetalert2';
+import Cookies from 'js-cookie';
 
 interface NavItem {
   id: string;
@@ -20,11 +22,10 @@ interface NavItem {
 }
 
 interface SidebarProps {
-  activeItem: string;
+  activeItem?: string;
   onNavigate?: (id: string) => void;
 }
 
-// 🔹 Danh sách các mục điều hướng
 const navItems: NavItem[] = [
   { id: 'home', label: 'Trang chủ', icon: <Home size={20} />, href: '/' },
   { id: 'history', label: 'Lịch sử', icon: <History size={20} />, href: '/history' },
@@ -38,13 +39,40 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // 🔹 Xác định item đang active dựa vào pathname
   const activeItem = navItems.find((item) => item.href === pathname)?.id || 'home';
 
   const handleClick = (item: NavItem) => {
     router.push(item.href);
     onNavigate?.(item.id);
   };
+
+  // 🧠 Hàm đăng xuất
+  const handleLogout = () => {
+  Swal.fire({
+    title: 'Xác nhận đăng xuất?',
+    text: 'Bạn có chắc muốn thoát khỏi tài khoản?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Đăng xuất',
+    cancelButtonText: 'Hủy',
+    reverseButtons: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      // ✅ Xóa cookie token
+      Cookies.remove('token', { path: '/' })
+
+      // 🔁 Điều hướng về trang login
+      router.push('/auth/signin')
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Đã đăng xuất',
+        showConfirmButton: false,
+        timer: 1200,
+      })
+    }
+  })
+}
 
   return (
     <aside className="w-56 bg-white border-r border-gray-200 flex flex-col h-screen">
@@ -76,7 +104,10 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
 
       {/* Logout */}
       <div className="p-4 border-t border-gray-200">
-        <button className="w-full flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+        >
           <LogOut size={20} />
           <span className="text-sm font-medium">Đăng xuất</span>
         </button>

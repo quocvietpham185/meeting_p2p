@@ -116,7 +116,7 @@ export default function SignUpPage() {
               {' '}
               <Image
                 src="/images/img_icon_add_user.svg"
-                alt="VideoMeet logo"
+                alt="Meethub logo"
                 width={24}
                 height={24}
               />{' '}

@@ -1,156 +1,150 @@
-'use client';
-import { useState } from 'react';
-import Button from '@/components/common/Button';
-import EditText from '@/components/common/EditText';
+'use client'
+import { useState } from 'react'
+import Button from '@/components/common/Button'
+import EditText from '@/components/common/EditText'
+import api from '@/lib/api'
 
-type Step = 'email' | 'verification' | 'newPassword' | 'success';
+type Step = 'email' | 'verification' | 'newPassword' | 'success'
 
 interface FormData {
-  email: string;
-  verificationCode: string;
-  newPassword: string;
-  confirmPassword: string;
+  email: string
+  verificationCode: string
+  newPassword: string
+  confirmPassword: string
 }
 
 export default function ForgotPasswordPage() {
-  const [currentStep, setCurrentStep] = useState<Step>('email');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [currentStep, setCurrentStep] = useState<Step>('email')
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [showPassword, setShowPassword] = useState<boolean>(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false)
   const [formData, setFormData] = useState<FormData>({
     email: '',
     verificationCode: '',
     newPassword: '',
     confirmPassword: '',
-  });
+  })
 
-  const handleInputChange = (field: keyof FormData) => (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: event.target.value,
-    }));
-  };
+  const handleInputChange =
+    (field: keyof FormData) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: event.target.value,
+      }))
+    }
 
   // Bước 1: Gửi email xác thực
   const handleSendEmail = async (): Promise<void> => {
     if (!formData.email) {
-      alert('Vui lòng nhập email!');
-      return;
+      alert('Vui lòng nhập email!')
+      return
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      // Simulate API call to send verification email
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      // TODO: Call your API
-      // const response = await fetch('/api/auth/forgot-password', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ email: formData.email }),
-      // });
-      
-      alert(`Mã xác thực đã được gửi đến ${formData.email}`);
-      setCurrentStep('verification');
+      const res = await api.post('/auth/forgot-password', formData)
+
+      if (res.data.success) {
+        alert(`Mã xác thực đã được gửi đến ${formData.email}`)
+        // Lưu token từ backend để dùng ở bước sau
+        localStorage.setItem('resetToken', res.data.data.token)
+        setCurrentStep('verification')
+      } else {
+        alert(res.data.message || 'Gửi thất bại!')
+      }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Có lỗi xảy ra. Vui lòng thử lại!');
+      console.error('Error:', error)
+      alert('Có lỗi xảy ra. Vui lòng thử lại!')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   // Bước 2: Xác thực mã code
   const handleVerifyCode = async (): Promise<void> => {
+    const token = localStorage.getItem('resetToken')
     if (!formData.verificationCode) {
-      alert('Vui lòng nhập mã xác thực!');
-      return;
+      alert('Vui lòng nhập mã xác thực!')
+      return
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      // Simulate API call to verify code
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // TODO: Call your API
-      // const response = await fetch('/api/auth/verify-code', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ 
-      //     email: formData.email,
-      //     code: formData.verificationCode 
-      //   }),
-      // });
-      
-      setCurrentStep('newPassword');
+      const res = await api.post('/auth/verify-code', {
+        token,
+        code: formData.verificationCode,
+      })
+      if (res.data.success) {
+        setCurrentStep('newPassword')
+      } else {
+        alert(res.data.message)
+      }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Mã xác thực không đúng!');
+      console.error('Error:', error)
+      alert('Mã xác thực không đúng hoặc là đã hết hạn')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   // Bước 3: Đặt mật khẩu mới
   const handleResetPassword = async (): Promise<void> => {
+    const token = localStorage.getItem('resetToken')
     if (!formData.newPassword || !formData.confirmPassword) {
-      alert('Vui lòng nhập đầy đủ mật khẩu!');
-      return;
+      alert('Vui lòng nhập đầy đủ mật khẩu!')
+      return
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      alert('Mật khẩu xác nhận không khớp!');
-      return;
+      alert('Mật khẩu xác nhận không khớp!')
+      return
     }
 
     if (formData.newPassword.length < 8) {
-      alert('Mật khẩu phải có ít nhất 8 ký tự!');
-      return;
+      alert('Mật khẩu phải có ít nhất 8 ký tự!')
+      return
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      // Simulate API call to reset password
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      // TODO: Call your API
-      // const response = await fetch('/api/auth/reset-password', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ 
-      //     email: formData.email,
-      //     code: formData.verificationCode,
-      //     newPassword: formData.newPassword 
-      //   }),
-      // });
-      
-      setCurrentStep('success');
+      const res = await api.post('/auth/reset-password', {
+        token,
+        code: formData.verificationCode,
+        newPassword: formData.newPassword,
+      })
+
+      if (res.data.success) {
+        setCurrentStep('success')
+        localStorage.removeItem('resetToken')
+      } else {
+        alert(res.data.message)
+      }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Có lỗi xảy ra. Vui lòng thử lại!');
+      console.error('Error:', error)
+      alert('Có lỗi xảy ra. Vui lòng thử lại!')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const handleBackToLogin = (): void => {
     // TODO: Navigate to login page
-    window.location.href = '/auth/signin';
-  };
+    window.location.href = '/auth/signin'
+  }
 
   const getPasswordStrength = (password: string) => {
-    if (password.length < 6) return 1;
-    if (password.length < 8) return 2;
-    if (!/[A-Z]/.test(password)) return 2;
-    if (!/[0-9]/.test(password)) return 3;
-    return 4;
-  };
+    if (password.length < 6) return 1
+    if (password.length < 8) return 2
+    if (!/[A-Z]/.test(password)) return 2
+    if (!/[0-9]/.test(password)) return 3
+    return 4
+  }
 
-  const passwordStrength = getPasswordStrength(formData.newPassword);
+  const passwordStrength = getPasswordStrength(formData.newPassword)
 
   return (
     <main className="flex items-center justify-center min-h-screen bg-gray-500 p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
-        
         {/* Step 1: Enter Email */}
         {currentStep === 'email' && (
           <div className="flex flex-col items-center">
@@ -268,8 +262,11 @@ export default function ForgotPasswordPage() {
               Kiểm tra email
             </h2>
             <p className="text-sm text-gray-600 text-center mb-6">
-              Chúng tôi đã gửi mã xác thực đến<br />
-              <span className="font-medium text-gray-900">{formData.email}</span>
+              Chúng tôi đã gửi mã xác thực đến
+              <br />
+              <span className="font-medium text-gray-900">
+                {formData.email}
+              </span>
             </p>
 
             {/* Verification Code Input */}
@@ -334,7 +331,14 @@ export default function ForgotPasswordPage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <rect
+                  x="3"
+                  y="11"
+                  width="18"
+                  height="11"
+                  rx="2"
+                  ry="2"
+                />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
             </div>
@@ -372,14 +376,39 @@ export default function ForgotPasswordPage() {
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showPassword ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
+                      <line
+                        x1="1"
+                        y1="1"
+                        x2="23"
+                        y2="23"
+                      />
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="3"
+                      />
                     </svg>
                   )}
                 </button>
@@ -389,19 +418,53 @@ export default function ForgotPasswordPage() {
               {formData.newPassword && (
                 <div className="mt-3 space-y-2">
                   <div className="flex gap-1">
-                    <div className={`h-1 flex-1 rounded ${passwordStrength >= 1 ? 'bg-red-500' : 'bg-gray-200'}`}></div>
-                    <div className={`h-1 flex-1 rounded ${passwordStrength >= 2 ? 'bg-yellow-500' : 'bg-gray-200'}`}></div>
-                    <div className={`h-1 flex-1 rounded ${passwordStrength >= 3 ? 'bg-green-400' : 'bg-gray-200'}`}></div>
-                    <div className={`h-1 flex-1 rounded ${passwordStrength >= 4 ? 'bg-green-600' : 'bg-gray-200'}`}></div>
+                    <div
+                      className={`h-1 flex-1 rounded ${
+                        passwordStrength >= 1 ? 'bg-red-500' : 'bg-gray-200'
+                      }`}
+                    ></div>
+                    <div
+                      className={`h-1 flex-1 rounded ${
+                        passwordStrength >= 2 ? 'bg-yellow-500' : 'bg-gray-200'
+                      }`}
+                    ></div>
+                    <div
+                      className={`h-1 flex-1 rounded ${
+                        passwordStrength >= 3 ? 'bg-green-400' : 'bg-gray-200'
+                      }`}
+                    ></div>
+                    <div
+                      className={`h-1 flex-1 rounded ${
+                        passwordStrength >= 4 ? 'bg-green-600' : 'bg-gray-200'
+                      }`}
+                    ></div>
                   </div>
                   <ul className="space-y-1 text-xs">
-                    <li className={formData.newPassword.length >= 8 ? 'text-green-600' : 'text-gray-500'}>
+                    <li
+                      className={
+                        formData.newPassword.length >= 8
+                          ? 'text-green-600'
+                          : 'text-gray-500'
+                      }
+                    >
                       ✓ Ít nhất 8 ký tự
                     </li>
-                    <li className={/[A-Z]/.test(formData.newPassword) ? 'text-green-600' : 'text-gray-500'}>
+                    <li
+                      className={
+                        /[A-Z]/.test(formData.newPassword)
+                          ? 'text-green-600'
+                          : 'text-gray-500'
+                      }
+                    >
                       ✓ Có chữ hoa
                     </li>
-                    <li className={/[0-9]/.test(formData.newPassword) ? 'text-green-600' : 'text-gray-500'}>
+                    <li
+                      className={
+                        /[0-9]/.test(formData.newPassword)
+                          ? 'text-green-600'
+                          : 'text-gray-500'
+                      }
+                    >
                       ✓ Có số
                     </li>
                   </ul>
@@ -434,14 +497,39 @@ export default function ForgotPasswordPage() {
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showConfirmPassword ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
+                      <line
+                        x1="1"
+                        y1="1"
+                        x2="23"
+                        y2="23"
+                      />
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="3"
+                      />
                     </svg>
                   )}
                 </button>
@@ -490,7 +578,8 @@ export default function ForgotPasswordPage() {
               Thành công!
             </h2>
             <p className="text-sm text-gray-600 text-center mb-6">
-              Mật khẩu của bạn đã được đặt lại thành công.<br />
+              Mật khẩu của bạn đã được đặt lại thành công.
+              <br />
               Bạn có thể đăng nhập với mật khẩu mới.
             </p>
 
@@ -511,5 +600,5 @@ export default function ForgotPasswordPage() {
         )}
       </div>
     </main>
-  );
+  )
 }

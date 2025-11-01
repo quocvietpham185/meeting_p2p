@@ -7,6 +7,7 @@ import { Meeting, UpcomingMeeting, Stats } from '@/interfaces/models/meeting';
 import UpcomingMeetings from './meeting/UpComingMeeting';
 import MeetingActions from './meeting/MeetingAction';
 import MainLayout from '@/components/layout/MainLayout';
+import ProtectedPage from '@/components/ProtectPage';
 
 export default function HomePage() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function HomePage() {
   };
 
   return (
+    <ProtectedPage>
     <MainLayout>
       <div>
         <div className="mb-8">
@@ -73,5 +75,6 @@ export default function HomePage() {
         </div>
       </div>
     </MainLayout>
+    </ProtectedPage>
   );
 }
