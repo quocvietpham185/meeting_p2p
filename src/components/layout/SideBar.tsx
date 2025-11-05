@@ -31,7 +31,6 @@ const navItems: NavItem[] = [
   { id: 'history', label: 'Lịch sử', icon: <History size={20} />, href: '/history' },
   { id: 'schedule', label: 'Lịch', icon: <Calendar size={20} />, href: '/schedule' },
   { id: 'devices', label: 'Thiết bị', icon: <Monitor size={20} />, href: '/devices' },
-  { id: 'contacts', label: 'Hồ sơ', icon: <Users size={20} />, href: '/contacts' },
   { id: 'settings', label: 'Cài đặt', icon: <Settings size={20} />, href: '/setting' },
 ];
 

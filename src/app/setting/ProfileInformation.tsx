@@ -54,13 +54,7 @@ export default function ProfileInformation({
         {/* Avatar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="relative group">
-            <Image
-              src={avatar}
-              alt={formData.displayName}
-              width={80}
-              height={80}
-              className="rounded-full"
-            />
+            
             <label
               htmlFor="avatar-upload"
               className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
@@ -86,32 +80,16 @@ export default function ProfileInformation({
 
         {/* Name Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              First Name
-            </label>
-            <EditText
-              type="text"
-              value={formData.firstName}
-              onChange={handleInputChange('firstName')}
-              text_font_size="text-sm"
-              text_color="text-gray-900"
-              fill_background_color="bg-white"
-              border_border="border border-gray-300"
-              border_border_radius="rounded-lg"
-              padding="py-2 px-3"
-              className="w-full focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+          
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Last Name
+              FullName
             </label>
             <EditText
               type="text"
-              value={formData.lastName}
-              onChange={handleInputChange('lastName')}
+              value={formData.fullName}
+              onChange={handleInputChange('fullName')}
               text_font_size="text-sm"
               text_color="text-gray-900"
               fill_background_color="bg-white"
@@ -123,24 +101,7 @@ export default function ProfileInformation({
           </div>
         </div>
 
-        {/* Display Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Display Name
-          </label>
-          <EditText
-            type="text"
-            value={formData.displayName}
-            onChange={handleInputChange('displayName')}
-            text_font_size="text-sm"
-            text_color="text-gray-900"
-            fill_background_color="bg-white"
-            border_border="border border-gray-300"
-            border_border_radius="rounded-lg"
-            padding="py-2 px-3"
-            className="w-full focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
+        
 
         {/* Email */}
         <div>
