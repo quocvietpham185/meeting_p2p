@@ -1,13 +1,18 @@
-// src/app/settings/SecuritySettings.tsx
-
 'use client';
 import React, { useState } from 'react';
 import EditText from '@/components/common/EditText';
 import Button from '@/components/common/Button';
+import api from '@/lib/api';
+import axios, { AxiosError } from 'axios';
 
 interface SecuritySettingsProps {
   twoFactorEnabled: boolean;
   onToggleTwoFactor: (enabled: boolean) => void;
+}
+
+interface ApiResponse {
+  success: boolean;
+  message?: string;
 }
 
 export default function SecuritySettings({
@@ -16,16 +21,61 @@ export default function SecuritySettings({
 }: SecuritySettingsProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleUpdatePassword = () => {
+  // 🧩 Hàm đổi mật khẩu
+  const handleUpdatePassword = async () => {
     if (!currentPassword || !newPassword) {
-      alert('Please fill all fields');
+      alert('Please fill in all password fields.');
       return;
     }
-    // TODO: API call
-    console.log('Update password');
-    setCurrentPassword('');
-    setNewPassword('');
+
+    try {
+      setLoading(true);
+      const res = await api.post<ApiResponse>('/user/change-password', {
+        currentPassword,
+        newPassword,
+      });
+
+      if (res.data.success) {
+        alert('Password updated successfully!');
+        setCurrentPassword('');
+        setNewPassword('');
+      } else {
+        alert(res.data.message || 'Failed to change password.');
+      }
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const err = error as AxiosError<{ message?: string }>;
+        alert(err.response?.data?.message || 'Server error while changing password.');
+      } else {
+        alert('Unexpected error while changing password.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🧩 Hàm bật/tắt xác thực 2 lớp
+  const handleToggleTwoFactor = async () => {
+    try {
+      const enabled = !twoFactorEnabled;
+      const res = await api.put<ApiResponse>('/two-factor', { enabled });
+
+      if (res.data.success) {
+        onToggleTwoFactor(enabled);
+        alert(res.data.message || 'Two-factor setting updated.');
+      } else {
+        alert(res.data.message || 'Failed to update two-factor setting.');
+      }
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const err = error as AxiosError<{ message?: string }>;
+        alert(err.response?.data?.message || 'Server error toggling 2FA.');
+      } else {
+        alert('Unexpected error toggling 2FA.');
+      }
+    }
   };
 
   return (
@@ -78,14 +128,16 @@ export default function SecuritySettings({
           <div className="mt-4">
             <Button
               onClick={handleUpdatePassword}
-              text="Update Password"
+              text={loading ? 'Updating...' : 'Update Password'}
               text_font_size="text-sm"
               text_font_weight="font-medium"
               text_color="text-white"
               fill_background_color="bg-gray-900"
               border_border_radius="rounded-lg"
               padding="py-2 px-4"
-              className="hover:bg-gray-800 transition-colors"
+              className={`hover:bg-gray-800 transition-colors ${
+                loading ? 'opacity-70 cursor-wait' : ''
+              }`}
             />
           </div>
         </div>
@@ -96,10 +148,10 @@ export default function SecuritySettings({
             Two-Factor Authentication
           </h3>
           <p className="text-sm text-gray-500 mb-4">
-            Add an extra layer of security to your account
+            Add an extra layer of security to your account.
           </p>
           <button
-            onClick={() => onToggleTwoFactor(!twoFactorEnabled)}
+            onClick={handleToggleTwoFactor}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
               twoFactorEnabled ? 'bg-blue-600' : 'bg-gray-300'
             }`}

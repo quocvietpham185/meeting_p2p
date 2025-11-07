@@ -1,9 +1,9 @@
-// src/app/settings/ConnectedAccounts.tsx
-
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import Button from '@/components/common/Button';
 import { ConnectedAccount } from '@/interfaces/models/user';
+import Cookies from 'js-cookie';
+import api from '@/lib/api';
 
 interface ConnectedAccountsProps {
   accounts: ConnectedAccount[];
@@ -16,6 +16,27 @@ export default function ConnectedAccounts({
   onConnect,
   onDisconnect,
 }: ConnectedAccountsProps) {
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm('Are you sure you want to disconnect this account?')) return;
+    try {
+      setLoading(id);
+      const res = await api.post(`/user/disconnect-account`, { id });
+      if (res.data.success) {
+        alert('Account disconnected successfully!');
+        onDisconnect(id);
+      } else {
+        alert(res.data.message || 'Failed to disconnect.');
+      }
+    } catch (error) {
+      console.error('Disconnect error:', error);
+      alert('Server error when disconnecting account.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-6">
@@ -64,10 +85,13 @@ export default function ConnectedAccounts({
                     Connected
                   </span>
                   <button
-                    onClick={() => onDisconnect(account.id)}
-                    className="text-xs text-red-600 font-medium px-3 py-1 hover:bg-red-50 rounded transition-colors"
+                    onClick={() => handleDisconnect(account.id)}
+                    disabled={loading === account.id}
+                    className={`text-xs text-red-600 font-medium px-3 py-1 hover:bg-red-50 rounded transition-colors ${
+                      loading === account.id ? 'opacity-50 cursor-wait' : ''
+                    }`}
                   >
-                    Disconnect
+                    {loading === account.id ? 'Disconnecting...' : 'Disconnect'}
                   </button>
                 </>
               ) : (
