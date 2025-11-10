@@ -76,8 +76,10 @@ export default function SignUpPage() {
 
       const res = await api.post('/auth/signup', payload)
       if (res.data.success) {
+        
         setMessage('✅ Đăng ký thành công! Đang chuyển hướng...')
         setTimeout(() => router.push('/auth/signin'), 1000)
+        
       } else {
         setMessage('❌ Đăng ký thất bại, vui lòng thử lại!')
       }

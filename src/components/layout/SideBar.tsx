@@ -13,6 +13,8 @@ import {
 import React from 'react';
 import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
+import axios from 'axios';
+import api from '@/lib/api';
 
 interface NavItem {
   id: string;
@@ -46,7 +48,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   };
 
   // 🧠 Hàm đăng xuất
-  const handleLogout = () => {
+  const handleLogout = async () => {
   Swal.fire({
     title: 'Xác nhận đăng xuất?',
     text: 'Bạn có chắc muốn thoát khỏi tài khoản?',
@@ -55,20 +57,33 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     confirmButtonText: 'Đăng xuất',
     cancelButtonText: 'Hủy',
     reverseButtons: true,
-  }).then((result) => {
+  }).then(async (result) => {
     if (result.isConfirmed) {
-      // ✅ Xóa cookie token
-      Cookies.remove('token', { path: '/' })
+      try {
+        // ✅ Gọi API logout để server xóa refresh_token
+        await api.post('/auth/logout', {}, { withCredentials: true })
 
-      // 🔁 Điều hướng về trang login
-      router.push('/auth/signin')
+        // ✅ Xóa access token FE (nếu bạn có lưu)
+        Cookies.remove('token', { path: '/' })
 
-      Swal.fire({
-        icon: 'success',
-        title: 'Đã đăng xuất',
-        showConfirmButton: false,
-        timer: 1200,
-      })
+        // 🔁 Điều hướng về trang đăng nhập
+        router.push('/auth/signin')
+
+        // ✅ Thông báo thành công
+        Swal.fire({
+          icon: 'success',
+          title: 'Đã đăng xuất',
+          showConfirmButton: false,
+          timer: 1200,
+        })
+      } catch (err) {
+        console.error('Logout error:', err)
+        Swal.fire({
+          icon: 'error',
+          title: 'Lỗi đăng xuất',
+          text: 'Không thể đăng xuất, vui lòng thử lại!',
+        })
+      }
     }
   })
 }

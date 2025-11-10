@@ -14,6 +14,7 @@ import {
   Preferences,
 } from '@/interfaces/models/user'
 import api from '@/lib/api'
+import Swal from 'sweetalert2'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -95,12 +96,45 @@ export default function SettingsPage() {
   }
 
   // ✅ Đăng xuất
-  const handleLogout = () => {
-    if (confirm('Bạn có chắc muốn đăng xuất không?')) {
-      Cookies.remove('token')
-      router.push('/auth/signin')
+  const handleLogout = async () => {
+  Swal.fire({
+    title: 'Xác nhận đăng xuất?',
+    text: 'Bạn có chắc muốn thoát khỏi tài khoản?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Đăng xuất',
+    cancelButtonText: 'Hủy',
+    reverseButtons: true,
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      try {
+        // ✅ Gọi API logout để server xóa refresh_token
+        await api.post('/auth/logout', {}, { withCredentials: true })
+
+        // ✅ Xóa access token FE (nếu bạn có lưu)
+        Cookies.remove('token', { path: '/' })
+
+        // 🔁 Điều hướng về trang đăng nhập
+        router.push('/auth/signin')
+
+        // ✅ Thông báo thành công
+        Swal.fire({
+          icon: 'success',
+          title: 'Đã đăng xuất',
+          showConfirmButton: false,
+          timer: 1200,
+        })
+      } catch (err) {
+        console.error('Logout error:', err)
+        Swal.fire({
+          icon: 'error',
+          title: 'Lỗi đăng xuất',
+          text: 'Không thể đăng xuất, vui lòng thử lại!',
+        })
+      }
     }
-  }
+  })
+}
 
   useEffect(() => {
     fetchProfile()
