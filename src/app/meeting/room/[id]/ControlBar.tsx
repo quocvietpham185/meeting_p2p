@@ -1,7 +1,7 @@
 // src/app/meeting/room/[id]/ControlBar.tsx
 
-'use client';
-import React from 'react';
+'use client'
+import React from 'react'
 import {
   Mic,
   MicOff,
@@ -13,18 +13,18 @@ import {
   Settings,
   PhoneOff,
   MoreVertical,
-} from 'lucide-react';
+} from 'lucide-react'
 
 interface ControlBarProps {
-  isMuted: boolean;
-  isVideoOn: boolean;
-  isScreenSharing: boolean;
-  onToggleMic: () => void;
-  onToggleVideo: () => void;
-  onToggleScreenShare: () => void;
-  onToggleChat: () => void;
-  onToggleParticipants: () => void;
-  onLeave: () => void;
+  isMuted: boolean
+  isVideoOn: boolean
+  isScreenSharing: boolean
+  onToggleMic: () => void
+  onToggleVideo: () => void
+  onToggleScreenShare: () => void
+  onToggleChat: () => void
+  onToggleParticipants: () => void
+  onLeave: () => void
 }
 
 export default function ControlBar({
@@ -53,9 +53,15 @@ export default function ControlBar({
             aria-label={isMuted ? 'Unmute' : 'Mute'}
           >
             {isMuted ? (
-              <MicOff size={20} className="text-white" />
+              <MicOff
+                size={20}
+                className="text-white"
+              />
             ) : (
-              <Mic size={20} className="text-white" />
+              <Mic
+                size={20}
+                className="text-white"
+              />
             )}
           </button>
 
@@ -69,9 +75,15 @@ export default function ControlBar({
             aria-label={isVideoOn ? 'Turn off video' : 'Turn on video'}
           >
             {isVideoOn ? (
-              <Video size={20} className="text-white" />
+              <Video
+                size={20}
+                className="text-white"
+              />
             ) : (
-              <VideoOff size={20} className="text-white" />
+              <VideoOff
+                size={20}
+                className="text-white"
+              />
             )}
           </button>
 
@@ -84,7 +96,10 @@ export default function ControlBar({
             }`}
             aria-label="Share screen"
           >
-            <Monitor size={20} className="text-white" />
+            <Monitor
+              size={20}
+              className="text-white"
+            />
           </button>
         </div>
 
@@ -95,7 +110,10 @@ export default function ControlBar({
             className="p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
             aria-label="Chat"
           >
-            <MessageSquare size={20} className="text-white" />
+            <MessageSquare
+              size={20}
+              className="text-white"
+            />
           </button>
 
           <button
@@ -103,21 +121,30 @@ export default function ControlBar({
             className="p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
             aria-label="Participants"
           >
-            <Users size={20} className="text-white" />
+            <Users
+              size={20}
+              className="text-white"
+            />
           </button>
 
           <button
             className="p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
             aria-label="Settings"
           >
-            <Settings size={20} className="text-white" />
+            <Settings
+              size={20}
+              className="text-white"
+            />
           </button>
 
           <button
             className="p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
             aria-label="More"
           >
-            <MoreVertical size={20} className="text-white" />
+            <MoreVertical
+              size={20}
+              className="text-white"
+            />
           </button>
         </div>
 
@@ -127,11 +154,14 @@ export default function ControlBar({
             onClick={onLeave}
             className="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
           >
-            <PhoneOff size={20} className="text-white" />
+            <PhoneOff
+              size={20}
+              className="text-white"
+            />
             <span className="text-white font-semibold">Kết thúc</span>
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }

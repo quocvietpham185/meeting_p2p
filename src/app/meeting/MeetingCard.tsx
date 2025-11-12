@@ -1,24 +1,31 @@
 //app/user/meeting/meetingCard.tsx
-'use client';
-import React from 'react';
-import { Users, Clock, Share2, ExternalLink } from 'lucide-react';
-import Button from '@/components/common/Button';
-import { Meeting } from '@/interfaces/models/meeting';
+'use client'
+import React from 'react'
+import { Users, Clock, Share2, ExternalLink } from 'lucide-react'
+import Button from '@/components/common/Button'
+import { Meeting } from '@/interfaces/models/meeting'
 
 interface MeetingCardProps {
-  meeting: Meeting;
-  onJoin?: (meetingId: string) => void;
-  onShare?: (meetingId: string) => void;
-  onOpenDetails?: (meetingId: string) => void;
+  meeting: Meeting
+  onJoin?: (meetingId: string) => void
+  onShare?: (meetingId: string) => void
+  onOpenDetails?: (meetingId: string) => void
 }
 
-export default function MeetingCard({ meeting, onJoin, onShare, onOpenDetails }: MeetingCardProps) {
+export default function MeetingCard({
+  meeting,
+  onJoin,
+  onShare,
+  onOpenDetails,
+}: MeetingCardProps) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow">
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <h3 className="font-semibold text-gray-900 text-base mb-1">{meeting.title}</h3>
+          <h3 className="font-semibold text-gray-900 text-base mb-1">
+            {meeting.title}
+          </h3>
           <p className="text-xs text-gray-500">ID: {meeting.meetingId}</p>
         </div>
         <div className="flex gap-2">
@@ -27,14 +34,20 @@ export default function MeetingCard({ meeting, onJoin, onShare, onOpenDetails }:
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Share"
           >
-            <Share2 size={16} className="text-gray-600" />
+            <Share2
+              size={16}
+              className="text-gray-600"
+            />
           </button>
           <button
             onClick={() => onOpenDetails?.(meeting.id)}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Open details"
           >
-            <ExternalLink size={16} className="text-gray-600" />
+            <ExternalLink
+              size={16}
+              className="text-gray-600"
+            />
           </button>
         </div>
       </div>
@@ -43,7 +56,10 @@ export default function MeetingCard({ meeting, onJoin, onShare, onOpenDetails }:
       <div className="flex items-center gap-4 mb-4 text-sm text-gray-600">
         <div className="flex items-center gap-1">
           <Users size={14} />
-          <span>{meeting.organizer.name}</span>
+          <span>
+            {/* {meeting.organizer?.name ?? meeting.full_name ?? 'Không rõ'} */}
+            {meeting.organizer?.name ?? 'Không rõ'}
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <Users size={14} />
@@ -70,5 +86,5 @@ export default function MeetingCard({ meeting, onJoin, onShare, onOpenDetails }:
         className="w-full hover:bg-blue-700 transition-colors"
       />
     </div>
-  );
+  )
 }

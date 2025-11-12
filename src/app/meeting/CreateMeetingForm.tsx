@@ -25,8 +25,8 @@ export default function CreateMeetingForm({
     enableWaitingRoom: true,
     inviteEmails: '',
     recurrence_type: 'none',
-    recurrence_interval: '1', // khoảng cách giữa các lần lặp
-    recurrence_days: [] as string[], // array các ngày trong tuần
+    recurrence_interval: '1',
+    recurrence_days: [] as string[],
     end_date: '',
   })
 
@@ -34,69 +34,60 @@ export default function CreateMeetingForm({
 
   const handleInputChange =
     (field: keyof typeof formData) =>
-    (
-      e: React.ChangeEvent<
-        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-      >
-    ) => {
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const value =
         e.target.type === 'checkbox'
           ? (e.target as HTMLInputElement).checked
           : e.target.value
-      setFormData((prev) => ({
-        ...prev,
-        [field]: value,
-      }))
+      setFormData((prev) => ({ ...prev, [field]: value }))
     }
 
   const handleToggle = (field: 'enableRecording' | 'enableWaitingRoom') => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: !prev[field],
-    }))
+    setFormData((prev) => ({ ...prev, [field]: !prev[field] }))
   }
 
   const calculateEndTime = (start: string, durationMinutes: string) => {
     if (!start) return ''
     const startDate = new Date(start)
-    const endDate = new Date(
-      startDate.getTime() + Number(durationMinutes) * 60000
-    )
+    const endDate = new Date(startDate.getTime() + Number(durationMinutes) * 60000)
     return endDate.toISOString()
   }
 
   const handleStartMeeting = async () => {
-    if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
-    setIsLoading(true)
-    try {
-      const now = new Date().toISOString()
-      const end_time = calculateEndTime(now, formData.duration)
+  if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
+  setIsLoading(true)
+  try {
+    const now = new Date().toISOString()
+    const end_time = calculateEndTime(now, formData.duration)
 
-      const payload: MeetingCreatePayload = {
-        title: formData.title,
-        description: formData.description || '',
-        passcode: formData.passcode || null,
-        start_time: now,
-        end_time,
-        duration: Number(formData.duration),
-        max_participants: Number(formData.maxParticipants),
-        enable_recording: formData.enableRecording,
-        enable_waiting_room: formData.enableWaitingRoom,
-        inviteEmails: formData.inviteEmails,
-        recurrence_type: formData.recurrence_type,
-        recurrence_interval: formData.recurrence_interval,
-        recurrence_days: formData.recurrence_days.join(','), // gửi dạng chuỗi
-        end_date: formData.end_date || null,
-      }
+    const payload: MeetingCreatePayload = {
+      title: formData.title,
+      description: formData.description || '',
+      passcode: formData.passcode || null,
+      start_time: now,
+      end_time,
+      duration: Number(formData.duration),
+      max_participants: Number(formData.maxParticipants),
+      enable_recording: formData.enableRecording,
+      enable_waiting_room: formData.enableWaitingRoom,
+      inviteEmails: formData.inviteEmails,
 
-      onStartMeeting(payload)
-    } catch (error) {
-      console.error(error)
-      alert('Có lỗi xảy ra!')
-    } finally {
-      setIsLoading(false)
+      // 👇 thêm 4 trường recurrence mặc định
+      recurrence_type: 'none',
+      recurrence_interval: '1',
+      recurrence_days: '',
+      end_date: null,
     }
+
+    onStartMeeting(payload)
+  } catch (error) {
+    console.error(error)
+    alert('Có lỗi xảy ra!')
+  } finally {
+    setIsLoading(false)
   }
+}
+
 
   const handleScheduleMeeting = async () => {
     if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
@@ -119,7 +110,7 @@ export default function CreateMeetingForm({
         inviteEmails: formData.inviteEmails || '',
         recurrence_type: formData.recurrence_type,
         recurrence_interval: formData.recurrence_interval,
-        recurrence_days: formData.recurrence_days.join(','), // gửi dạng chuỗi
+        recurrence_days: formData.recurrence_days.join(','),
         end_date: formData.end_date || null,
       }
 
@@ -135,12 +126,8 @@ export default function CreateMeetingForm({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Tạo cuộc họp mới
-        </h1>
-        <p className="text-gray-600">
-          Thiết lập phòng họp mới hoặc lên lịch cho sau
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Tạo cuộc họp mới</h1>
+        <p className="text-gray-600">Thiết lập phòng họp mới hoặc lên lịch cho sau</p>
       </div>
 
       <div className="space-y-6">
@@ -175,16 +162,13 @@ export default function CreateMeetingForm({
               value={formData.description}
               onChange={handleInputChange('description')}
               rows={3}
-              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900 resize-none"
+              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base text-gray-900 resize-none"
             />
-            <FileText
-              size={18}
-              className="absolute right-3 top-3 text-gray-400 pointer-events-none"
-            />
+            <FileText size={18} className="absolute right-3 top-3 text-gray-400" />
           </div>
         </div>
 
-        {/* Thời gian & thời lượng */}
+        {/* Thời gian và thời lượng */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -195,10 +179,10 @@ export default function CreateMeetingForm({
                 type="datetime-local"
                 value={formData.scheduledTime}
                 onChange={handleInputChange('scheduledTime')}
-                className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
+                className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base text-gray-900"
               />
               <Calendar
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
                 size={18}
               />
             </div>
@@ -211,7 +195,7 @@ export default function CreateMeetingForm({
             <select
               value={formData.duration}
               onChange={handleInputChange('duration')}
-              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
+              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base text-gray-900"
             >
               <option value="15">15 phút</option>
               <option value="30">30 phút</option>
@@ -231,7 +215,7 @@ export default function CreateMeetingForm({
           <select
             value={formData.recurrence_type}
             onChange={handleInputChange('recurrence_type')}
-            className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
+            className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base text-gray-900"
           >
             <option value="none">Không lặp lại</option>
             <option value="daily">Hàng ngày</option>
@@ -240,25 +224,21 @@ export default function CreateMeetingForm({
           </select>
         </div>
 
-        {/* Chọn ngày trong tuần nếu lặp hàng tuần */}
         {formData.recurrence_type === 'weekly' && (
           <div className="mt-2 flex gap-2 flex-wrap">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <label
-                key={day}
-                className="flex items-center gap-1"
-              >
+              <label key={day} className="flex items-center gap-1">
                 <input
                   type="checkbox"
                   checked={formData.recurrence_days.includes(day)}
-                  onChange={() => {
-                    setFormData((prev) => {
-                      const days = prev.recurrence_days.includes(day)
+                  onChange={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      recurrence_days: prev.recurrence_days.includes(day)
                         ? prev.recurrence_days.filter((d) => d !== day)
-                        : [...prev.recurrence_days, day]
-                      return { ...prev, recurrence_days: days }
-                    })
-                  }}
+                        : [...prev.recurrence_days, day],
+                    }))
+                  }
                 />
                 {day}
               </label>
@@ -266,7 +246,6 @@ export default function CreateMeetingForm({
           </div>
         )}
 
-        {/* Ngày kết thúc lặp */}
         {formData.recurrence_type !== 'none' && (
           <div className="mt-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -276,112 +255,56 @@ export default function CreateMeetingForm({
               type="date"
               value={formData.end_date}
               onChange={handleInputChange('end_date')}
-              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
+              className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base text-gray-900"
             />
           </div>
         )}
 
-        {/* Số người tối đa */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Số người tham gia tối đa
-          </label>
-          <EditText
-            type="number"
-            value={formData.maxParticipants}
-            onChange={handleInputChange('maxParticipants')}
-            text_font_size="text-base"
-            text_color="text-gray-900"
-            fill_background_color="bg-white"
-            border_border="border border-gray-300"
-            border_border_radius="rounded-lg"
-            padding="py-3 px-4"
-            className="w-full focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-
         {/* Bật ghi hình & phòng chờ */}
         <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                <Video
-                  size={20}
-                  className="text-gray-700"
-                />
+          {[ 
+            {
+              label: 'Bật ghi hình',
+              desc: 'Tự động ghi lại cuộc họp',
+              icon: <Video size={20} className="text-gray-700" />,
+              field: 'enableRecording',
+            },
+            {
+              label: 'Bật phòng chờ',
+              desc: 'Duyệt thủ công người tham gia',
+              icon: <Users size={20} className="text-gray-700" />,
+              field: 'enableWaitingRoom',
+            },
+          ].map((opt) => (
+            <div key={opt.field} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+                  {opt.icon}
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900">{opt.label}</h4>
+                  <p className="text-xs text-gray-500">{opt.desc}</p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">
-                  Bật ghi hình
-                </h4>
-                <p className="text-xs text-gray-500">
-                  Tự động ghi lại cuộc họp
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleToggle('enableRecording')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                formData.enableRecording ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  formData.enableRecording ? 'translate-x-6' : 'translate-x-1'
+              <button
+                type="button"
+                onClick={() => handleToggle(opt.field as 'enableRecording' | 'enableWaitingRoom')}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  formData[opt.field as 'enableRecording' | 'enableWaitingRoom']
+                    ? 'bg-blue-600'
+                    : 'bg-gray-300'
                 }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                <Users
-                  size={20}
-                  className="text-gray-700"
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData[opt.field as 'enableRecording' | 'enableWaitingRoom']
+                      ? 'translate-x-6'
+                      : 'translate-x-1'
+                  }`}
                 />
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">
-                  Bật phòng chờ
-                </h4>
-                <p className="text-xs text-gray-500">
-                  Duyệt thủ công người tham gia
-                </p>
-              </div>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => handleToggle('enableWaitingRoom')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                formData.enableWaitingRoom ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  formData.enableWaitingRoom ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* Mời người tham gia */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Mời người tham gia (tuỳ chọn)
-          </label>
-          <textarea
-            placeholder="Nhập email, cách nhau bằng dấu phẩy"
-            value={formData.inviteEmails}
-            onChange={handleInputChange('inviteEmails')}
-            rows={3}
-            className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900 resize-none"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Ví dụ: abc@gmail.com, xyz@abc.com
-          </p>
+          ))}
         </div>
 
         {/* Nút hành động */}
@@ -389,23 +312,23 @@ export default function CreateMeetingForm({
           <Button
             onClick={handleStartMeeting}
             disabled={isLoading}
-            text={isLoading ? 'Đang tạo...' : 'Bắt đầu ngay'}
+            text="Bắt đầu ngay"
             text_font_size="text-base"
             text_font_weight="font-semibold"
             text_color="text-white"
             fill_background_color="bg-blue-600"
             border_border_radius="rounded-lg"
             padding="py-3 px-4"
-            className="w-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full hover:bg-blue-700 flex items-center justify-center gap-2"
           >
             <Video size={18} />
-            <span>{isLoading ? 'Đang tạo...' : 'Bắt đầu ngay'}</span>
+            {isLoading ? 'Đang tạo...' : 'Bắt đầu ngay'}
           </Button>
 
           <Button
             onClick={handleScheduleMeeting}
             disabled={isLoading}
-            text={isLoading ? 'Đang lên lịch...' : 'Lên lịch cuộc họp'}
+            text="Lên lịch cuộc họp"
             text_font_size="text-base"
             text_font_weight="font-semibold"
             text_color="text-blue-600"
@@ -413,10 +336,10 @@ export default function CreateMeetingForm({
             border_border="border border-blue-600"
             border_border_radius="rounded-lg"
             padding="py-3 px-4"
-            className="w-full hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full hover:bg-blue-50 flex items-center justify-center gap-2"
           >
             <Calendar size={18} />
-            <span>{isLoading ? 'Đang lên lịch...' : 'Lên lịch cuộc họp'}</span>
+            {isLoading ? 'Đang lên lịch...' : 'Lên lịch cuộc họp'}
           </Button>
         </div>
       </div>

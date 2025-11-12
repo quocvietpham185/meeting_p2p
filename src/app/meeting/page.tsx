@@ -1,39 +1,57 @@
-'use client'
-import React from 'react'
-import { useRouter } from 'next/navigation'
-import CreateMeetingForm from './CreateMeetingForm'
-import { MeetingCreatePayload } from '@/interfaces/api/meeting'
-import MainLayout from '@/components/layout/MainLayout'
-import api from '@/lib/api'
+'use client';
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import CreateMeetingForm from './CreateMeetingForm';
+import { MeetingCreatePayload } from '@/interfaces/api/meeting';
+import MainLayout from '@/components/layout/MainLayout';
+import api from '@/lib/api';
+
+interface MeetingResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    id: string;
+    meeting_id: string;
+    title: string;
+  };
+}
 
 export default function CreateMeetingPage() {
-  const router = useRouter()
+  const router = useRouter();
 
-  const handleStartMeeting = async (data: MeetingCreatePayload) => {
+  async function handleStartMeeting(data: MeetingCreatePayload): Promise<void> {
     try {
-      const response = await api.post('/meetings', data)
-      const result = response.data
+      const res = await api.post<MeetingResponse>('/meetings', data);
+      const meeting = res.data?.data;
 
-      if (!result.success) throw new Error(result.message)
-      alert('Tạo cuộc họp thành công!')
-      router.push(`/meeting/room/${result.data.meetingId}`)
-    } catch (error) {
-      console.error('Error starting meeting:', error)
-      alert('Lỗi khi tạo cuộc họp!')
+      if (meeting?.id) {
+        router.push(`/meeting/room/${meeting.id}`);
+      } else {
+        alert('Không tạo được phòng, dữ liệu rỗng!');
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error('Create meeting error:', err.message);
+        alert('Lỗi tạo phòng! ' + err.message);
+      } else {
+        console.error('Unknown error:', err);
+        alert('Lỗi không xác định khi tạo phòng!');
+      }
     }
   }
 
-  const handleScheduleMeeting = async (data: MeetingCreatePayload) => {
+  async function handleScheduleMeeting(data: MeetingCreatePayload): Promise<void> {
     try {
-      const response = await api.post('/schedule', data)
-      const result = response.data
-
-      if (!result.success) throw new Error(result.message)
-      alert('Lên lịch cuộc họp thành công!')
-      router.push('/schedule')
+      const res = await api.post<MeetingResponse>('/schedule', data);
+      const result = res.data;
+      if (!result.success) throw new Error(result.message ?? 'Không rõ lỗi');
+      alert('Lên lịch cuộc họp thành công!');
+      router.push('/schedule');
     } catch (error) {
-      console.error('Error scheduling meeting:', error)
-      alert('Lỗi khi lên lịch cuộc họp!')
+      if (error instanceof Error) {
+        console.error('Error scheduling meeting:', error.message);
+        alert('Lỗi khi lên lịch: ' + error.message);
+      }
     }
   }
 
@@ -46,5 +64,5 @@ export default function CreateMeetingPage() {
         />
       </div>
     </MainLayout>
-  )
+  );
 }

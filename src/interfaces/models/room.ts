@@ -11,6 +11,7 @@ export interface Participant {
 export interface ChatMessage {
   id: string;
   userId: string;
+  roomId: string;
   userName: string;
   userAvatar: string;
   message: string;
