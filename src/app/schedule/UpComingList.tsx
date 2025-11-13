@@ -137,7 +137,7 @@ export default function UpcomingList({
                 </button>
                 <button
                   onClick={() => {
-                    onEdit(meeting.id)
+                    onEdit(meeting.meetingId)
                     setOpenMenuId(null)
                   }}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"

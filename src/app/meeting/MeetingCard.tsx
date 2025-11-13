@@ -58,7 +58,7 @@ export default function MeetingCard({
           <Users size={14} />
           <span>
             {/* {meeting.organizer?.name ?? meeting.full_name ?? 'Không rõ'} */}
-            {meeting.organizer?.name ?? 'Không rõ'}
+            {meeting.organizer?.fullName ?? 'Không rõ'}
           </span>
         </div>
         <div className="flex items-center gap-1">

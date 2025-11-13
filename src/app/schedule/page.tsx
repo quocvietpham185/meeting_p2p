@@ -58,6 +58,7 @@ export default function SchedulePage() {
           id: m.id,
           title: m.title,
           description: m.description,
+          meetingId: m.meeting_id,
           startTime,
           endTime,
           duration: m.duration,
@@ -104,13 +105,13 @@ export default function SchedulePage() {
 
   /** --- Event Handlers --- */
   const handleCreateMeeting = () => router.push('/meeting');
-  const handleJoinMeeting = (id: string) => router.push(`/meeting/room/${id}`);
+  const handleJoinMeeting = (meetingId: string) => router.push(`/meeting/room/${meetingId}`);
 
-  const handleCancelMeeting = async (id: string) => {
+  const handleCancelMeeting = async (meetingId: string) => {
     if (!confirm('Bạn có chắc muốn hủy cuộc họp này?')) return;
     try {
-      await api.delete(`/schedule/${id}`, { withCredentials: true });
-      setMeetings((prev) => prev.filter((m) => m.id !== id));
+      await api.delete(`/schedule/${meetingId}`, { withCredentials: true });
+      setMeetings((prev) => prev.filter((m) => m.meetingId !== meetingId));
       alert('Đã hủy cuộc họp!');
     } catch (err) {
       console.error('Cancel failed:', err);

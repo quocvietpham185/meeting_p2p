@@ -10,6 +10,7 @@ export interface ApiParticipant {
 export interface ApiMeeting {
   id: string
   title: string
+  meeting_id: string
   description?: string
   start_time: string
   end_time: string

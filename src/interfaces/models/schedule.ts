@@ -4,6 +4,7 @@ export interface ScheduledMeeting {
   id: string;
   title: string;
   description?: string;
+  meetingId: string
   startTime: Date;
   endTime: Date;
   duration: number; // minutes

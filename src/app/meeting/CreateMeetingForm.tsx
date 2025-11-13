@@ -32,18 +32,21 @@ export default function CreateMeetingForm({
 
   const [isLoading, setIsLoading] = useState(false)
 
+  // --------------------------------
+  // HANDLERS
+  // --------------------------------
   const handleInputChange =
     (field: keyof typeof formData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-      const value =
-        e.target.type === 'checkbox'
-          ? (e.target as HTMLInputElement).checked
-          : e.target.value
-      setFormData((prev) => ({ ...prev, [field]: value }))
+      const value = e.target.type === 'checkbox'
+        ? (e.target as HTMLInputElement).checked
+        : e.target.value
+
+      setFormData(prev => ({ ...prev, [field]: value }))
     }
 
   const handleToggle = (field: 'enableRecording' | 'enableWaitingRoom') => {
-    setFormData((prev) => ({ ...prev, [field]: !prev[field] }))
+    setFormData(prev => ({ ...prev, [field]: !prev[field] }))
   }
 
   const calculateEndTime = (start: string, durationMinutes: string) => {
@@ -53,49 +56,111 @@ export default function CreateMeetingForm({
     return endDate.toISOString()
   }
 
-  const handleStartMeeting = async () => {
-  if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
-  setIsLoading(true)
-  try {
-    const now = new Date().toISOString()
-    const end_time = calculateEndTime(now, formData.duration)
+  // --------------------------------
+  // VALIDATION — Chặn tạo cuộc họp trong quá khứ
+  // --------------------------------
+  const validateScheduledTime = (time: string) => {
+    const now = new Date()
+    const selected = new Date(time)
 
-    const payload: MeetingCreatePayload = {
-      title: formData.title,
-      description: formData.description || '',
-      passcode: formData.passcode || null,
-      start_time: now,
-      end_time,
-      duration: Number(formData.duration),
-      max_participants: Number(formData.maxParticipants),
-      enable_recording: formData.enableRecording,
-      enable_waiting_room: formData.enableWaitingRoom,
-      inviteEmails: formData.inviteEmails,
+    if (selected.getTime() < now.getTime()) {
+      alert('⛔ Không thể tạo cuộc họp trong quá khứ!')
+      return false
+    }
+    return true
+  }
 
-      // 👇 thêm 4 trường recurrence mặc định
-      recurrence_type: 'none',
-      recurrence_interval: '1',
-      recurrence_days: '',
-      end_date: null,
+  const validateRecurrence = () => {
+    if (formData.recurrence_type === 'weekly' && formData.recurrence_days.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 ngày trong tuần!')
+      return false
     }
 
-    onStartMeeting(payload)
-  } catch (error) {
-    console.error(error)
-    alert('Có lỗi xảy ra!')
-  } finally {
-    setIsLoading(false)
+    if (formData.recurrence_type !== 'none' && formData.end_date) {
+      const end = new Date(formData.end_date)
+      const start = new Date(formData.scheduledTime)
+
+      if (end.getTime() < start.getTime()) {
+        alert('Ngày kết thúc lặp phải sau ngày bắt đầu!')
+        return false
+      }
+    }
+
+    return true
   }
-}
 
+  // --------------------------------
+  // START NOW
+  // --------------------------------
+  const handleStartMeeting = async () => {
+    if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
 
+    setIsLoading(true)
+    try {
+      const now = new Date().toISOString()
+      const end_time = calculateEndTime(now, formData.duration)
+
+      const payload: MeetingCreatePayload = {
+        title: formData.title,
+        description: formData.description || '',
+        passcode: formData.passcode || null,
+        start_time: now,
+        end_time,
+        duration: Number(formData.duration),
+        max_participants: Number(formData.maxParticipants),
+        enable_recording: formData.enableRecording,
+        enable_waiting_room: formData.enableWaitingRoom,
+        inviteEmails: formData.inviteEmails,
+        recurrence_type: 'none',
+        recurrence_interval: '1',
+        recurrence_days: '',
+        end_date: null,
+      }
+
+      onStartMeeting(payload)
+    } catch (err) {
+      console.error(err)
+      alert('Có lỗi xảy ra!')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // --------------------------------
+  // SCHEDULE MEETING
+  // --------------------------------
   const handleScheduleMeeting = async () => {
     if (!formData.title.trim()) return alert('Vui lòng nhập tên phòng!')
     if (!formData.scheduledTime) return alert('Vui lòng chọn thời gian!')
+
+    // ❗ Validate: ko được chọn thời gian quá khứ
+    if (!validateScheduledTime(formData.scheduledTime)) return
+
+    // Validate recurrence
+    if (!validateRecurrence()) return
+
     setIsLoading(true)
     try {
       const start_time = new Date(formData.scheduledTime).toISOString()
       const end_time = calculateEndTime(start_time, formData.duration)
+
+      const recurrenceDaysFormatted =
+        formData.recurrence_type === 'weekly'
+          ? formData.recurrence_days
+              .map(d => {
+                const map: Record<string, string> = {
+                  Sun: 'SU',
+                  Mon: 'MO',
+                  Tue: 'TU',
+                  Wed: 'WE',
+                  Thu: 'TH',
+                  Fri: 'FR',
+                  Sat: 'SA',
+                }
+                return map[d] ?? d
+              })
+              .join(',')
+          : ''
 
       const payload: MeetingCreatePayload = {
         title: formData.title,
@@ -110,19 +175,18 @@ export default function CreateMeetingForm({
         inviteEmails: formData.inviteEmails || '',
         recurrence_type: formData.recurrence_type,
         recurrence_interval: formData.recurrence_interval,
-        recurrence_days: formData.recurrence_days.join(','),
+        recurrence_days: recurrenceDaysFormatted,
         end_date: formData.end_date || null,
       }
 
       onScheduleMeeting(payload)
-    } catch (error) {
-      console.error(error)
+    } catch (err) {
+      console.error(err)
       alert('Có lỗi xảy ra!')
     } finally {
       setIsLoading(false)
     }
   }
-
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
       <div className="mb-8">

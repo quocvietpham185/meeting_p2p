@@ -30,7 +30,7 @@ export default function UpcomingMeetings({ meetings }: UpcomingMeetingsProps) {
                 <Image
                   key={participant.id}
                   src={participant.avatar}
-                  alt={participant.name}
+                  alt={participant.fullName}
                   width={24}
                   height={24}
                   className="rounded-full border-2 border-white"

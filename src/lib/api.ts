@@ -1,138 +1,141 @@
 // src/lib/api.ts
-import axios, { AxiosError, AxiosHeaders, AxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 
-/** ================== Cấu hình cơ bản ================== */
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api",
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
 });
 
-axios.defaults.withCredentials = true;
+// ======================================
+// Types
+// ======================================
 
-/** ================== State trong bộ nhớ ================== */
-let accessToken: string | null = null;
-let initialized = false;
-let inFlightRefresh: Promise<string> | null = null;
-
-/** ================== Type helpers ================== */
-type AccessTokenRoot = { accessToken?: string };
-type AccessTokenNested = { data?: { accessToken?: string } };
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === 'object' && x !== null;
-}
-export async function ensureAccessToken() {
-  if (!accessToken && !initialized) {
-    initialized = true;
-    try {
-      const res = await api.post('/auth/refresh', {}, { withCredentials: true });
-      const token = extractAccessToken(res.data);
-      if (token) {
-        accessToken = token;
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      }
-    } catch {
-      console.warn('[API] No valid refresh token');
-    }
-  }
+interface RefreshResponse {
+  accessToken?: string;
+  data?: { accessToken?: string };
 }
 
-function extractAccessToken(data: unknown): string | null {
-  if (isRecord(data) && typeof (data as AccessTokenRoot).accessToken === 'string') {
-    return (data as AccessTokenRoot).accessToken!;
-  }
-  if (
-    isRecord(data) &&
-    isRecord((data as AccessTokenNested).data) &&
-    typeof (data as AccessTokenNested).data!.accessToken === 'string'
-  ) {
-    return (data as AccessTokenNested).data!.accessToken!;
-  }
-  return null;
+interface TokenCallback {
+  (token: string): void;
 }
 
 type RetriableConfig = AxiosRequestConfig & { _retry?: boolean };
 
-function setAuthHeader(cfg: AxiosRequestConfig, token: string): void {
-  (cfg.headers ??= {})['Authorization'] = `Bearer ${token}`;
+// ======================================
+// STATE IN MEMORY
+// ======================================
+let isRefreshing = false;
+let refreshQueue: TokenCallback[] = [];
+
+// ======================================
+// TYPE GUARD: kiểm tra object
+// ======================================
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-/** ================== Interceptors ================== */
-// Thêm Authorization nếu đã có accessToken trong RAM
+// ======================================
+// Helper: Lấy accessToken từ response
+// ======================================
+function extractAccessToken(data: unknown): string | null {
+  if (!isObject(data)) return null;
+
+  // case 1: { accessToken: "..." }
+  if (typeof data.accessToken === "string") return data.accessToken;
+
+  // case 2: { data: { accessToken: "..." } }
+  if (isObject(data.data) && typeof data.data.accessToken === "string") {
+    return data.data.accessToken;
+  }
+
+  return null;
+}
+
+// ======================================
+// REQUEST interceptor: luôn gắn Authorization
+// ======================================
 api.interceptors.request.use((config) => {
-  const token = accessToken || localStorage.getItem('accessToken');
+  const token = localStorage.getItem("accessToken");
 
   if (token) {
-    // Trường hợp headers chưa được khởi tạo
-    if (!config.headers) {
-      config.headers = new AxiosHeaders();
-    }
-
-    // Nếu là instance của AxiosHeaders
-    if (config.headers instanceof AxiosHeaders) {
-      config.headers.set('Authorization', `Bearer ${token}`);
-    } else {
-      // Nếu headers là object thường (vẫn xảy ra trong một số runtime)
-      (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-    }
+    config.headers = config.headers || {};
+    config.headers["Authorization"] = `Bearer ${token}`;
   }
 
   return config;
 });
 
-// Tự động lưu accessToken nếu server trả về (ví dụ /auth/signin)
+// ======================================
+// RESPONSE interceptor: refresh token tự động
+// ======================================
 api.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse<RefreshResponse>) => {
     const token = extractAccessToken(response.data);
+
     if (token) {
-      accessToken = token;
-      // set vào defaults cho các request sau
-      const defaults = (api.defaults.headers.common ?? {}) as Record<string, string>;
-      defaults.Authorization = `Bearer ${token}`;
-      api.defaults.headers.common = defaults;
+      localStorage.setItem("accessToken", token);
     }
+
     return response;
   },
+
   async (error: AxiosError) => {
-    const original = (error.config ?? {}) as RetriableConfig;
+    const original = error.config as RetriableConfig;
 
-    // Nếu 401 và chưa retry → thử refresh
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true;
-
-      inFlightRefresh =
-        inFlightRefresh ??
-        api
-          .post('/auth/refresh', {}, { withCredentials: true })
-          .then((res) => {
-            const token = extractAccessToken(res.data);
-            if (!token) throw new Error('No access token in refresh response');
-            accessToken = token;
-
-            const defaults = (api.defaults.headers.common ?? {}) as Record<string, string>;
-            defaults.Authorization = `Bearer ${token}`;
-            api.defaults.headers.common = defaults;
-
-            return token;
-          })
-          .finally(() => {
-            inFlightRefresh = null;
-          });
-
-      try {
-        const newToken = await inFlightRefresh;
-        if (newToken) {
-          setAuthHeader(original, newToken);
-          return api(original);
-        }
-      } catch {
-        accessToken = null; // refresh thất bại → xoá token trong RAM
-      }
+    // Không phải lỗi 401 -> throw
+    if (error.response?.status !== 401) {
+      return Promise.reject(error);
     }
 
-    // Ném lỗi cho caller xử lý (ví dụ: SchedulePage sẽ redirect khi 401)
-    return Promise.reject(error);
+    // Tránh retry nhiều lần
+    if (original._retry) {
+      return Promise.reject(error);
+    }
+    original._retry = true;
+
+    // Nếu đang refresh → request chờ
+    if (isRefreshing) {
+      return new Promise((resolve) => {
+        refreshQueue.push((accessToken) => {
+          original.headers = original.headers || {};
+          original.headers["Authorization"] = `Bearer ${accessToken}`;
+          resolve(api(original));
+        });
+      });
+    }
+
+    // Thực hiện refresh
+    isRefreshing = true;
+
+    try {
+      const res = await api.post<RefreshResponse>(
+        "/auth/refresh",
+        {},
+        { withCredentials: true }
+      );
+
+      const newToken = extractAccessToken(res.data);
+      if (!newToken) throw new Error("Refresh không trả về accessToken");
+
+      localStorage.setItem("accessToken", newToken);
+
+      // Retry các request đang đợi
+      refreshQueue.forEach((cb) => cb(newToken));
+      refreshQueue = [];
+      isRefreshing = false;
+
+      original.headers = original.headers || {};
+      original.headers["Authorization"] = `Bearer ${newToken}`;
+
+      return api(original);
+    } catch (refreshError) {
+      isRefreshing = false;
+      refreshQueue = [];
+
+      localStorage.removeItem("accessToken");
+
+      return Promise.reject(refreshError);
+    }
   }
 );
 

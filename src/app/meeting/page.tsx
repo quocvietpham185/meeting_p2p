@@ -24,8 +24,8 @@ export default function CreateMeetingPage() {
       const res = await api.post<MeetingResponse>('/meetings', data);
       const meeting = res.data?.data;
 
-      if (meeting?.id) {
-        router.push(`/meeting/room/${meeting.id}`);
+      if (meeting?.meeting_id) {
+        router.push(`/meeting/room/${meeting.meeting_id}`);
       } else {
         alert('Không tạo được phòng, dữ liệu rỗng!');
       }

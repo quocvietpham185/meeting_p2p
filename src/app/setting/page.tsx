@@ -51,7 +51,7 @@ export default function SettingsPage() {
       if (data.success) {
         setProfile({
           id: data.data.id,
-          fullName: data.data.full_name || `${data.data.first_name} ${data.data.last_name}`,
+          fullName: data.data.full_name,
           email: data.data.email,
           avatar: data.data.avatar || '/images/avatar1.png',
         })

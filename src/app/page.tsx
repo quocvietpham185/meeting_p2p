@@ -7,7 +7,7 @@ import MeetingCard from '@/app/meeting/MeetingCard';
 import StatsWidget from '@/app/widget/StatsWidget';
 import UpcomingMeetings from '@/app/meeting/UpComingMeeting';
 import MeetingActions from '@/app/meeting/MeetingAction';
-import api, { ensureAccessToken } from '@/lib/api';
+import api from '@/lib/api';
 import { Meeting, UpcomingMeeting, Stats } from '@/interfaces/models/meeting';
 
 export default function HomePage() {
@@ -21,11 +21,11 @@ export default function HomePage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        await ensureAccessToken();
+        // await ensureAccessToken();
 
         // 🧑‍💼 Lấy thông tin user
         const userRes = await api.get('/user/me');
-        setUserName(userRes.data?.data?.full_name ?? 'Người dùng');
+        setUserName(userRes.data?.data?.fullName ?? 'Người dùng');
 
         // 🧾 Lấy danh sách cuộc họp gần đây
         const meetRes = await api.get('/meetings');
@@ -51,10 +51,10 @@ export default function HomePage() {
   }, []);
 
   const handleCreateMeeting = () => router.push('/meeting');
-  const handleJoinMeeting = (code: string) => router.push(`/meeting/join/${code}`);
-  const handleJoinMeetingCard = (id: string) => router.push(`/meeting/room/${id}`);
+  const handleJoinMeeting = (code: string) => router.push(`/meeting/room/${code}`);
+  const handleJoinMeetingCard = (meetingId: string) => router.push(`/meeting/room/${meetingId}`);
   const handleShareMeeting = (id: string) => {
-    const shareUrl = `${window.location.origin}/meeting/join/${id}`;
+    const shareUrl = `${window.location.origin}/meeting/room/${id}`;
     navigator.clipboard.writeText(shareUrl);
     alert('🔗 Link cuộc họp đã được sao chép!');
   };
