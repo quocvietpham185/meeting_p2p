@@ -33,6 +33,12 @@ export default function MeetingRoomPage() {
 
   const [realRoomId, setRealRoomId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [popup, setPopup] = useState<{
+    type: "join" | "leave";
+    name: string;
+  } | null>(null);
+
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     name: string;
@@ -41,16 +47,17 @@ export default function MeetingRoomPage() {
 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenShare, setIsScreenShare] = useState(false);
 
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
 
-  /* ---------------- 1️⃣ FETCH USER + UUID PHÒNG SONG SONG ---------------- */
+  /* ---------------- Load USER + UUID ---------------- */
   useEffect(() => {
     const loadAll = async () => {
       try {
@@ -65,7 +72,7 @@ export default function MeetingRoomPage() {
           avatar: userRes.data.data.avatar,
         });
 
-        setRealRoomId(roomRes.data.data.id); // UUID
+        setRealRoomId(roomRes.data.data.id);
       } catch (err) {
         console.error(err);
       }
@@ -76,7 +83,7 @@ export default function MeetingRoomPage() {
     loadAll();
   }, [meetingCode]);
 
-  /* ---------------- 2️⃣ JOIN ROOM SAU KHI ĐÃ LOAD USER + UUID ---------------- */
+  /* ---------------- JOIN ROOM ---------------- */
   useEffect(() => {
     if (!realRoomId || !currentUser) return;
 
@@ -114,41 +121,78 @@ export default function MeetingRoomPage() {
         avatar: currentUser.avatar,
       },
       async (res: JoinRoomAck) => {
-        if (res.success) {
-          await mediaController.init();
-          await peerManager.initLocalStream();
+        if (!res.success) return;
 
-          setParticipants([
-            {
-              id: currentUser.id,
-              name: currentUser.name,
-              avatar: currentUser.avatar,
-              isHost: true,
-              isMuted: false,
-              isVideoOn: true,
-              isSpeaking: false,
-            },
-            ...res.peers.map((p) => ({
-              id: p.userId,
-              name: p.userName,
-              avatar: p.avatar ?? "",
-              isHost: false,
-              isMuted: false,
-              isVideoOn: true,
-              isSpeaking: false,
-            })),
-          ]);
+        await mediaController.init();
+        await peerManager.initLocalStream();
 
-          if (res.messages) setMessages(res.messages);
+        // Add self
+        setParticipants([
+          {
+            id: currentUser.id,
+            socketId: socket.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+            isHost: true,
+            isMuted: false,
+            isVideoOn: true,
+            isSpeaking: false,
+          }
+        ]);
 
-          res.peers.forEach((p) => peerManager.createOffer(p.socketId));
-        }
+        if (res.messages) setMessages(res.messages);
+
+        // Call existing peers
+        res.peers.forEach((p) => peerManager.createOffer(p.socketId));
       }
     );
 
-    chatManager.onUpdate((msgs) => setMessages(msgs));
+    /* ---------------- USER JOINED ---------------- */
+    socket.on("user-joined", (u) => {
+      setParticipants((prev) => {
+        if (prev.some((p) => p.id === u.userId)) return prev;
 
-    socket.on("signal-offer", async ({ from, sdp }) => peerManager.handleOffer(from, sdp));
+        return [
+          ...prev,
+          {
+            id: u.userId,
+            socketId: u.socketId,
+            name: u.userName,
+            avatar: u.avatar ?? "",
+            isHost: false,
+            isMuted: false,
+            isVideoOn: true,
+            isSpeaking: false,
+          },
+        ];
+      });
+
+      setPopup({ type: "join", name: u.userName });
+      setTimeout(() => setPopup(null), 5000);
+
+      peerManager.createOffer(u.socketId);
+    });
+
+    /* ---------------- USER LEFT ---------------- */
+    socket.on("user-left", ({ socketId }) => {
+      // Remove remote stream
+      setRemoteStreams((prev) => {
+        const cp = { ...prev };
+        delete cp[socketId];
+        return cp;
+      });
+
+      // Remove participant
+      setParticipants((prev) => prev.filter((p) => p.id !== socketId && p.socketId !== socketId));
+
+      setPopup({ type: "leave", name: "Một người dùng" });
+      setTimeout(() => setPopup(null), 5000);
+    });
+
+    /* ---------------- SIGNALING ---------------- */
+    socket.on("signal-offer", async ({ from, sdp }) =>
+      peerManager.handleOffer(from, sdp)
+    );
     socket.on("signal-answer", async ({ from, sdp }) =>
       peerManager.handleAnswer(from, sdp)
     );
@@ -156,7 +200,15 @@ export default function MeetingRoomPage() {
       peerManager.handleCandidate(from, candidate)
     );
 
+    chatManager.onUpdate((msgs) => setMessages(msgs));
+
     return () => {
+      socket.off("user-joined");
+      socket.off("user-left");
+      socket.off("signal-offer");
+      socket.off("signal-answer");
+      socket.off("signal-candidate");
+
       chatManager.clear();
       mediaController.stopAll();
       peerManager.cleanup();
@@ -164,18 +216,23 @@ export default function MeetingRoomPage() {
     };
   }, [realRoomId, currentUser]);
 
-  /* ---------------- RENDER UI ---------------- */
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
 
-      {/* Loading UI nhưng KHÔNG return early → ✔ không lỗi useEffect  */}
-      {loading && (
-        <div className="flex-1 flex items-center justify-center text-lg">
-          Đang tải phòng họp...
+      {/* ⭐ Popup góc phải dưới */}
+      {popup && (
+        <div className="absolute bottom-4 right-4 bg-gray-800 px-4 py-3 rounded-lg shadow-lg text-white animate-fade-in">
+          {popup.type === "join"
+            ? `${popup.name} đã tham gia phòng`
+            : `${popup.name} đã rời phòng`}
         </div>
       )}
 
-      {!loading && (
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center text-lg">
+          Đang tải phòng họp...
+        </div>
+      ) : (
         <>
           <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex justify-between">
             <h1 className="font-semibold">Phòng họp {meetingCode}</h1>
@@ -225,7 +282,7 @@ export default function MeetingRoomPage() {
             isScreenSharing={isScreenShare}
             onToggleMic={() => setIsMuted(!isMuted)}
             onToggleVideo={() => setIsVideoOn(!isVideoOn)}
-            onToggleScreenShare={() => setIsScreenShare(!isScreenShare)}  // ⭐ FIXED
+            onToggleScreenShare={() => setIsScreenShare(!isScreenShare)}
             onToggleChat={() => {
               setShowChat(!showChat);
               setShowParticipants(false);

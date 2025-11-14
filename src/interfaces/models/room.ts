@@ -1,5 +1,6 @@
 export interface Participant {
   id: string;
+  socketId: string | undefined;
   name: string;
   avatar: string;
   isMuted: boolean;
