@@ -10,7 +10,7 @@ export interface MeetingCreatePayload {
   enable_recording: boolean;
   enable_waiting_room: boolean;
   inviteEmails: string;
-   recurrence_type: string,
+  recurrence_type: string,
   recurrence_interval: string, // có thể thêm select nếu muốn chỉnh khoảng cách
   recurrence_days: string,
   end_date: string | null,

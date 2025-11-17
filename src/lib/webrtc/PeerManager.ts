@@ -20,9 +20,17 @@ export class PeerManager {
       video: true,
       audio: true,
     });
+    this.attachLocalStream(stream);
+    return stream;
+  }
+
+  attachLocalStream(stream: MediaStream): void {
     this.localStream = stream;
     this.events.onLocalStream?.(stream);
-    return stream;
+    // Attach tracks to any existing peer connections
+    this.peers.forEach((pc) => {
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    });
   }
 
   async createPeerConnection(socketId: string): Promise<RTCPeerConnection> {
@@ -88,12 +96,27 @@ export class PeerManager {
     if (pc && candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
   }
 
-  toggleAudio(): void {
-    this.localStream?.getAudioTracks().forEach((t) => (t.enabled = !t.enabled));
+  toggleAudio(): boolean {
+    if (!this.localStream) return false;
+    const [track] = this.localStream.getAudioTracks();
+    if (track) track.enabled = !track.enabled;
+    return track?.enabled ?? false;
   }
 
-  toggleVideo(): void {
-    this.localStream?.getVideoTracks().forEach((t) => (t.enabled = !t.enabled));
+  toggleVideo(): boolean {
+    if (!this.localStream) return false;
+    const [track] = this.localStream.getVideoTracks();
+    if (track) track.enabled = !track.enabled;
+    return track?.enabled ?? false;
+  }
+
+  replaceVideoTrack(track: MediaStreamTrack): void {
+    this.peers.forEach((pc) => {
+      const sender = pc
+        .getSenders()
+        .find((s) => s.track && s.track.kind === "video");
+      sender?.replaceTrack(track);
+    });
   }
 
   cleanup(): void {

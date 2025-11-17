@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { socket } from "@/lib/socket";
 import { PeerManager } from "@/lib/webrtc/PeerManager";
@@ -57,6 +57,13 @@ export default function MeetingRoomPage() {
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
 
+  const [hostId, setHostId] = useState<string | null>(null);
+
+  const mediaControllerRef = useRef<MediaController | null>(null);
+  const peerManagerRef = useRef<PeerManager | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+
   /* ---------------- Load USER + UUID ---------------- */
   useEffect(() => {
     const loadAll = async () => {
@@ -66,13 +73,23 @@ export default function MeetingRoomPage() {
           api.get(`/meetings/by-code/${meetingCode}`)
         ]);
 
+        const meetingId = roomRes.data.data.id;
+        let organizerId: string | null = null;
+        try {
+          const detailRes = await api.get(`/meetings/${meetingId}`);
+          organizerId = detailRes.data?.data?.organizer?.id ?? null;
+        } catch (detailErr) {
+          console.error("Failed to load meeting detail", detailErr);
+        }
+
         setCurrentUser({
           id: userRes.data.data.id,
           name: userRes.data.data.fullName,
           avatar: userRes.data.data.avatar,
         });
 
-        setRealRoomId(roomRes.data.data.id);
+        setHostId(organizerId);
+        setRealRoomId(meetingId);
       } catch (err) {
         console.error(err);
       }
@@ -83,14 +100,27 @@ export default function MeetingRoomPage() {
     loadAll();
   }, [meetingCode]);
 
+  useEffect(() => {
+    if (!hostId) return;
+    setParticipants((prev) =>
+      prev.map((p) => ({
+        ...p,
+        isHost: p.id === hostId,
+      }))
+    );
+  }, [hostId]);
+
   /* ---------------- JOIN ROOM ---------------- */
   useEffect(() => {
     if (!realRoomId || !currentUser) return;
 
-    const mediaController = new MediaController();
-    const peerManager = new PeerManager(
-      [{ urls: "stun:stun.l.google.com:19302" }],
-      {
+    const mediaController =
+      mediaControllerRef.current ?? new MediaController();
+    mediaControllerRef.current = mediaController;
+
+    const peerManager =
+      peerManagerRef.current ??
+      new PeerManager([{ urls: "stun:stun.l.google.com:19302" }], {
         onLocalStream: (stream) => setLocalStream(stream),
         onRemoteStream: (socketId, stream) =>
           setRemoteStreams((prev) => ({ ...prev, [socketId]: stream })),
@@ -100,8 +130,8 @@ export default function MeetingRoomPage() {
             delete cp[socketId];
             return cp;
           }),
-      }
-    );
+      });
+    peerManagerRef.current = peerManager;
 
     const chatManager = new ChatManager(
       realRoomId,
@@ -123,8 +153,11 @@ export default function MeetingRoomPage() {
       async (res: JoinRoomAck) => {
         if (!res.success) return;
 
-        await mediaController.init();
-        await peerManager.initLocalStream();
+        const stream = await mediaController.init();
+        cameraStreamRef.current = stream;
+        peerManager.attachLocalStream(stream);
+        setIsMuted(false);
+        setIsVideoOn(true);
 
         // Add self
         setParticipants([
@@ -133,7 +166,7 @@ export default function MeetingRoomPage() {
             socketId: socket.id,
             name: currentUser.name,
             avatar: currentUser.avatar,
-            isHost: true,
+            isHost: currentUser.id === hostId,
             isMuted: false,
             isVideoOn: true,
             isSpeaking: false,
@@ -159,7 +192,7 @@ export default function MeetingRoomPage() {
             socketId: u.socketId,
             name: u.userName,
             avatar: u.avatar ?? "",
-            isHost: false,
+            isHost: u.userId === hostId,
             isMuted: false,
             isVideoOn: true,
             isSpeaking: false,
@@ -211,10 +244,79 @@ export default function MeetingRoomPage() {
 
       chatManager.clear();
       mediaController.stopAll();
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
       peerManager.cleanup();
       socket.disconnect();
     };
   }, [realRoomId, currentUser]);
+
+  const handleToggleMic = () => {
+    const media = mediaControllerRef.current;
+    if (!media || !currentUser) return;
+    const enabled = media.toggleAudio();
+    setIsMuted(!enabled);
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === currentUser.id ? { ...p, isMuted: !enabled } : p
+      )
+    );
+  };
+
+  const handleToggleVideo = () => {
+    const media = mediaControllerRef.current;
+    if (!media || !currentUser) return;
+    const enabled = media.toggleVideo();
+    setIsVideoOn(enabled);
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === currentUser.id ? { ...p, isVideoOn: enabled } : p
+      )
+    );
+  };
+
+  const stopScreenShare = () => {
+    const peerManager = peerManagerRef.current;
+    const cameraStream = cameraStreamRef.current;
+    if (!peerManager || !cameraStream) return;
+
+    const [camTrack] = cameraStream.getVideoTracks();
+    if (camTrack) {
+      peerManager.replaceVideoTrack(camTrack);
+    }
+    setLocalStream(cameraStream);
+
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current = null;
+    setIsScreenShare(false);
+  };
+
+  const handleToggleScreenShare = async () => {
+    if (isScreenShare) {
+      stopScreenShare();
+      return;
+    }
+
+    const media = mediaControllerRef.current;
+    const peerManager = peerManagerRef.current;
+    if (!media || !peerManager) return;
+
+    const screenStream = await media.shareScreen();
+    if (!screenStream) return;
+
+    const [screenTrack] = screenStream.getVideoTracks();
+    if (!screenTrack) {
+      screenStream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    screenStreamRef.current = screenStream;
+    peerManager.replaceVideoTrack(screenTrack);
+    setLocalStream(screenStream);
+    setIsScreenShare(true);
+
+    screenTrack.onended = () => stopScreenShare();
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
@@ -280,9 +382,9 @@ export default function MeetingRoomPage() {
             isMuted={isMuted}
             isVideoOn={isVideoOn}
             isScreenSharing={isScreenShare}
-            onToggleMic={() => setIsMuted(!isMuted)}
-            onToggleVideo={() => setIsVideoOn(!isVideoOn)}
-            onToggleScreenShare={() => setIsScreenShare(!isScreenShare)}
+            onToggleMic={handleToggleMic}
+            onToggleVideo={handleToggleVideo}
+            onToggleScreenShare={handleToggleScreenShare}
             onToggleChat={() => {
               setShowChat(!showChat);
               setShowParticipants(false);

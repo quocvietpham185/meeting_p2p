@@ -15,9 +15,10 @@ export default function MeetingActions({
 }: MeetingActionsProps) {
   const [joinCode, setJoinCode] = useState('')
   const router = useRouter()
-  const handleJoin = () => {
-    if (joinCode.trim()) {
-      onJoinMeeting?.(joinCode)
+   const handleJoin = () => {
+    const code = joinCode.trim()
+    if (code) {
+      onJoinMeeting?.(code)
       setJoinCode('')
     }
   }

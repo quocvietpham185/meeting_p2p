@@ -41,13 +41,16 @@ export default function VideoGrid({
   };
 
   return (
-    <div className={`grid ${gridCols()} gap-3 h-full p-4`}>
+    <div className={`grid ${gridCols()} gap-4 h-full p-4 auto-rows-[minmax(0,1fr)]`}>
       {participants.map((p) => {
         const isLocal = p.id === currentUserId;
         const refKey = isLocal ? 'local' : p.id;
 
         return (
-          <div key={p.id} className="relative bg-black rounded-lg overflow-hidden shadow-lg">
+          <div
+            key={p.id}
+            className="relative bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-lg aspect-video"
+          >
             <video
               ref={(el) => {
                 videoRefs.current[refKey] = el;
@@ -55,11 +58,11 @@ export default function VideoGrid({
               autoPlay
               playsInline
               muted={isLocal} // local phải muted
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover bg-black"
             />
 
             {/* Label người dùng */}
-            <div className="absolute bottom-0 left-0 w-full bg-black/50 p-2 text-white text-sm">
+            <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/70 to-transparent p-3 text-white text-sm flex items-center justify-between">
               {p.name} {p.isHost && '(Host)'}
             </div>
           </div>
@@ -68,3 +71,5 @@ export default function VideoGrid({
     </div>
   );
 }
+
+
