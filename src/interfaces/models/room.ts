@@ -1,12 +1,13 @@
 export interface Participant {
   id: string;
-  socketId: string | undefined;
+  socketId: string;
   name: string;
   avatar: string;
   isMuted: boolean;
   isVideoOn: boolean;
   isHost: boolean;
   isSpeaking: boolean;
+  isScreenSharing?: boolean;
 }
 
 export interface ChatMessage {

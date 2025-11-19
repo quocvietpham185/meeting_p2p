@@ -1,149 +1,179 @@
-"use client";
+// src/app/meeting/room/[id]/MeetingRoomPage.tsx - Debug version
+'use client'
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { socket } from "@/lib/socket";
-import { PeerManager } from "@/lib/webrtc/PeerManager";
-import { ChatManager } from "@/lib/webrtc/ChatManager";
-import { MediaController } from "@/lib/webrtc/MediaController";
-import { ChatMessage, Participant } from "@/interfaces/models/room";
-import VideoGrid from "./VideoGrid";
-import ChatPanel from "./ChatPanel";
-import ControlBar from "./ControlBar";
-import ParticipantsPanel from "./ParticipantsPanel";
-import api from "@/lib/api";
+import { useEffect, useRef, useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { socket } from '@/lib/socket'
+import { PeerManager } from '@/lib/webrtc/PeerManager'
+import { ChatManager } from '@/lib/webrtc/ChatManager'
+import { MediaController } from '@/lib/webrtc/MediaController'
+import { ChatMessage, Participant } from '@/interfaces/models/room'
+import VideoGrid from './VideoGrid'
+import ChatPanel from './ChatPanel'
+import ControlBar from './ControlBar'
+import ParticipantsPanel from './ParticipantsPanel'
+import api from '@/lib/api'
 
 interface PeerInfo {
-  socketId: string;
-  userId: string;
-  userName: string;
-  avatar?: string;
+  socketId: string
+  userId: string
+  userName: string
+  avatar?: string
+}
+
+interface ScreenShareState {
+  userId: string
+  socketId: string
+  userName: string
 }
 
 interface JoinRoomAck {
-  success: boolean;
-  peers: PeerInfo[];
-  messages?: ChatMessage[];
+  success: boolean
+  peers: PeerInfo[]
+  messages?: ChatMessage[]
+  screenSharing?: ScreenShareState | null
 }
 
 export default function MeetingRoomPage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const meetingCode = params.id;
+  const router = useRouter()
+  const params = useParams<{ id: string }>()
+  const meetingCode = params.id
 
-  const [realRoomId, setRealRoomId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [realRoomId, setRealRoomId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const [popup, setPopup] = useState<{
-    type: "join" | "leave";
-    name: string;
-  } | null>(null);
+    type: 'join' | 'leave'
+    name: string
+  } | null>(null)
 
   const [currentUser, setCurrentUser] = useState<{
-    id: string;
-    name: string;
-    avatar: string;
-  } | null>(null);
+    id: string
+    name: string
+    avatar: string
+  } | null>(null)
 
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const [participants, setParticipants] = useState<Participant[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [remoteStreams, setRemoteStreams] = useState<
+    Record<string, MediaStream>
+  >({})
 
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isScreenShare, setIsScreenShare] = useState(false);
+  const [isMuted, setIsMuted] = useState(false)
+  const [isVideoOn, setIsVideoOn] = useState(true)
+  const [isScreenShare, setIsScreenShare] = useState(false)
 
-  const [showChat, setShowChat] = useState(false);
-  const [showParticipants, setShowParticipants] = useState(false);
+  const [showChat, setShowChat] = useState(false)
+  const [showParticipants, setShowParticipants] = useState(false)
 
-  const [hostId, setHostId] = useState<string | null>(null);
+  const [hostId, setHostId] = useState<string | null>(null)
 
-  const mediaControllerRef = useRef<MediaController | null>(null);
-  const peerManagerRef = useRef<PeerManager | null>(null);
-  const cameraStreamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
+  const mediaControllerRef = useRef<MediaController | null>(null)
+  const peerManagerRef = useRef<PeerManager | null>(null)
+  const cameraStreamRef = useRef<MediaStream | null>(null)
+  const screenStreamRef = useRef<MediaStream | null>(null)
+  const chatManagerRef = useRef<ChatManager | null>(null)
 
   /* ---------------- Load USER + UUID ---------------- */
   useEffect(() => {
+    let mounted = true
+
     const loadAll = async () => {
       try {
         const [userRes, roomRes] = await Promise.all([
-          api.get("/user/me"),
-          api.get(`/meetings/by-code/${meetingCode}`)
-        ]);
+          api.get('/user/me'),
+          api.get(`/meetings/by-code/${meetingCode}`),
+        ])
 
-        const meetingId = roomRes.data.data.id;
-        let organizerId: string | null = null;
+        if (!mounted) return
+
+        const meetingId = roomRes.data.data.id
+        let organizerId: string | null = null
         try {
-          const detailRes = await api.get(`/meetings/${meetingId}`);
-          organizerId = detailRes.data?.data?.organizer?.id ?? null;
+          const detailRes = await api.get(`/meetings/${meetingId}`)
+          organizerId = detailRes.data?.data?.organizer?.id ?? null
         } catch (detailErr) {
-          console.error("Failed to load meeting detail", detailErr);
+          console.error('Failed to load meeting detail', detailErr)
         }
 
         setCurrentUser({
           id: userRes.data.data.id,
           name: userRes.data.data.fullName,
           avatar: userRes.data.data.avatar,
-        });
+        })
 
-        setHostId(organizerId);
-        setRealRoomId(meetingId);
+        setHostId(organizerId)
+        setRealRoomId(meetingId)
       } catch (err) {
-        console.error(err);
+        console.error('Failed to load user/room', err)
+      } finally {
+        if (mounted) setLoading(false)
       }
+    }
 
-      setLoading(false);
-    };
+    loadAll()
 
-    loadAll();
-  }, [meetingCode]);
-
-  useEffect(() => {
-    if (!hostId) return;
-    setParticipants((prev) =>
-      prev.map((p) => ({
-        ...p,
-        isHost: p.id === hostId,
-      }))
-    );
-  }, [hostId]);
+    return () => {
+      mounted = false
+    }
+  }, [meetingCode])
 
   /* ---------------- JOIN ROOM ---------------- */
   useEffect(() => {
-    if (!realRoomId || !currentUser) return;
+    if (!realRoomId || !currentUser?.id) return
 
-    const mediaController =
-      mediaControllerRef.current ?? new MediaController();
-    mediaControllerRef.current = mediaController;
+    const mediaController = mediaControllerRef.current ?? new MediaController()
+    mediaControllerRef.current = mediaController
 
     const peerManager =
       peerManagerRef.current ??
-      new PeerManager([{ urls: "stun:stun.l.google.com:19302" }], {
-        onLocalStream: (stream) => setLocalStream(stream),
-        onRemoteStream: (socketId, stream) =>
-          setRemoteStreams((prev) => ({ ...prev, [socketId]: stream })),
+      new PeerManager([{ urls: 'stun:stun.l.google.com:19302' }], {
+        onLocalStream: (stream) => {
+          console.log('🎬 PeerManager onLocalStream:', {
+            streamId: stream.id,
+            tracks: stream.getTracks().map(t => ({
+              kind: t.kind,
+              enabled: t.enabled,
+              readyState: t.readyState
+            }))
+          });
+          setLocalStream(stream)
+        },
+        onRemoteStream: (socketId, stream) => {
+          console.log('📡 Received remote stream:', {
+            socketId,
+            streamId: stream.id,
+            tracks: stream.getTracks().map(t => ({
+              kind: t.kind,
+              enabled: t.enabled,
+              readyState: t.readyState
+            }))
+          });
+          setRemoteStreams((prev) => ({ ...prev, [socketId]: stream }))
+        },
         onPeerDisconnected: (socketId) =>
           setRemoteStreams((prev) => {
-            const cp = { ...prev };
-            delete cp[socketId];
-            return cp;
+            const cp = { ...prev }
+            delete cp[socketId]
+            return cp
           }),
-      });
-    peerManagerRef.current = peerManager;
+      })
+    peerManagerRef.current = peerManager
 
     const chatManager = new ChatManager(
       realRoomId,
       currentUser.id,
       currentUser.name,
       currentUser.avatar
-    );
+    )
+    chatManagerRef.current = chatManager
 
-    socket.connect();
+    socket.connect()
 
     socket.emit(
-      "join-room",
+      'join-room',
       {
         roomId: realRoomId,
         userId: currentUser.id,
@@ -151,180 +181,380 @@ export default function MeetingRoomPage() {
         avatar: currentUser.avatar,
       },
       async (res: JoinRoomAck) => {
-        if (!res.success) return;
-
-        const stream = await mediaController.init();
-        cameraStreamRef.current = stream;
-        peerManager.attachLocalStream(stream);
-        setIsMuted(false);
-        setIsVideoOn(true);
-
-        // Add self
-        setParticipants([
-          {
-            id: currentUser.id,
-            socketId: socket.id,
-            name: currentUser.name,
-            avatar: currentUser.avatar,
-            isHost: currentUser.id === hostId,
-            isMuted: false,
-            isVideoOn: true,
-            isSpeaking: false,
+        try {
+          if (!res.success) {
+            console.warn('Failed to join room')
+            return
           }
-        ]);
 
-        if (res.messages) setMessages(res.messages);
+          // Get camera/mic stream
+          const stream = await mediaController.init()
+          if (stream) {
+            cameraStreamRef.current = stream
+            setCameraStream(stream)
+            setLocalStream(stream)
+            peerManager.updateLocalStream(stream)
+            
+            console.log('✅ Initial stream set:', {
+              streamId: stream.id,
+              tracks: stream.getTracks().map(t => ({
+                kind: t.kind,
+                enabled: t.enabled,
+                readyState: t.readyState,
+                label: t.label
+              }))
+            });
+          }
 
-        // Call existing peers
-        res.peers.forEach((p) => peerManager.createOffer(p.socketId));
+          setIsMuted(false)
+          setIsVideoOn(true)
+
+          // Handle screen sharing state from server
+          if (res.screenSharing) {
+            const { userId: sharingUserId, socketId: sharingSocketId } =
+              res.screenSharing
+
+            console.log('📺 Someone is already sharing:', {
+              userId: sharingUserId,
+              socketId: sharingSocketId
+            });
+
+            setParticipants((prev) =>
+              prev.map((p) =>
+                p.id === sharingUserId || p.socketId === sharingSocketId
+                  ? { ...p, isScreenSharing: true }
+                  : p
+              )
+            )
+          }
+
+          setParticipants((prev) => {
+            const selfExists = prev.some((p) => p.id === currentUser.id)
+            const selfEntry: Participant = {
+              id: currentUser.id,
+              socketId: socket.id || '',
+              name: currentUser.name,
+              avatar: currentUser.avatar,
+              isHost: false,
+              isMuted: false,
+              isVideoOn: true,
+              isSpeaking: false,
+              isScreenSharing: res.screenSharing?.userId === currentUser.id,
+            }
+
+            const peersEntries = res.peers.map((p) => ({
+              id: p.userId,
+              socketId: p.socketId,
+              name: p.userName,
+              avatar: p.avatar ?? '',
+              isHost: false,
+              isMuted: false,
+              isVideoOn: true,
+              isSpeaking: false,
+              isScreenSharing: res.screenSharing?.userId === p.userId,
+            }))
+
+            const merged = [
+              ...(selfExists
+                ? prev.filter((x) => x.id !== currentUser.id)
+                : prev),
+              selfEntry,
+              ...peersEntries.filter((peer) => peer.id !== currentUser.id),
+            ]
+            return merged
+          })
+
+          if (res.messages) setMessages(res.messages)
+
+          res.peers.forEach((p) => {
+            peerManager.createOffer(p.socketId)
+          })
+        } catch (e) {
+          console.error('Error during join callback', e)
+        }
       }
-    );
+    )
 
     /* ---------------- USER JOINED ---------------- */
-    socket.on("user-joined", (u) => {
+    const onUserJoined = (u: {
+      socketId: string
+      userId: string
+      userName: string
+      avatar?: string
+    }) => {
       setParticipants((prev) => {
-        if (prev.some((p) => p.id === u.userId)) return prev;
-
+        if (prev.some((p) => p.id === u.userId)) return prev
         return [
           ...prev,
           {
             id: u.userId,
             socketId: u.socketId,
             name: u.userName,
-            avatar: u.avatar ?? "",
-            isHost: u.userId === hostId,
+            avatar: u.avatar ?? '',
+            isHost: false,
             isMuted: false,
             isVideoOn: true,
             isSpeaking: false,
+            isScreenSharing: false,
           },
-        ];
-      });
+        ]
+      })
 
-      setPopup({ type: "join", name: u.userName });
-      setTimeout(() => setPopup(null), 5000);
+      setPopup({ type: 'join', name: u.userName })
+      setTimeout(() => setPopup(null), 5000)
 
-      peerManager.createOffer(u.socketId);
-    });
+      peerManager.createOffer(u.socketId)
+    }
 
     /* ---------------- USER LEFT ---------------- */
-    socket.on("user-left", ({ socketId }) => {
-      // Remove remote stream
+    const onUserLeft = ({ socketId }: { socketId: string }) => {
       setRemoteStreams((prev) => {
-        const cp = { ...prev };
-        delete cp[socketId];
-        return cp;
-      });
+        const cp = { ...prev }
+        delete cp[socketId]
+        return cp
+      })
 
-      // Remove participant
-      setParticipants((prev) => prev.filter((p) => p.id !== socketId && p.socketId !== socketId));
+      setParticipants((prev) => prev.filter((p) => p.socketId !== socketId))
 
-      setPopup({ type: "leave", name: "Một người dùng" });
-      setTimeout(() => setPopup(null), 5000);
-    });
+      setPopup({ type: 'leave', name: 'Một người dùng' })
+      setTimeout(() => setPopup(null), 5000)
+    }
 
     /* ---------------- SIGNALING ---------------- */
-    socket.on("signal-offer", async ({ from, sdp }) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onSignalOffer = async ({ from, sdp }: { from: string; sdp: any }) =>
       peerManager.handleOffer(from, sdp)
-    );
-    socket.on("signal-answer", async ({ from, sdp }) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onSignalAnswer = async ({ from, sdp }: { from: string; sdp: any }) =>
       peerManager.handleAnswer(from, sdp)
-    );
-    socket.on("signal-candidate", async ({ from, candidate }) =>
-      peerManager.handleCandidate(from, candidate)
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onSignalCandidate = async (props: { from: string; candidate: any }) =>
+      peerManager.handleCandidate(props.from, props.candidate)
 
-    chatManager.onUpdate((msgs) => setMessages(msgs));
+    socket.on('user-joined', onUserJoined)
+    socket.on('user-left', onUserLeft)
+    socket.on('signal-offer', onSignalOffer)
+    socket.on('signal-answer', onSignalAnswer)
+    socket.on('signal-candidate', onSignalCandidate)
+
+    // Screen share updates
+    const onScreenShareUpdate = (data: {
+      socketId: string
+      userId: string
+      userName?: string
+      isSharing: boolean
+    }) => {
+      console.log('📺 Screen share update:', data)
+
+      setParticipants((prev) =>
+        prev.map((p) => {
+          if (p.socketId === data.socketId || p.id === data.userId) {
+            return { ...p, isScreenSharing: data.isSharing }
+          }
+          return { ...p, isScreenSharing: false }
+        })
+      )
+
+      if (data.userId === currentUser.id) {
+        setIsScreenShare(data.isSharing)
+      }
+    }
+    socket.on('screen-share:update', onScreenShareUpdate)
+
+    chatManager.onUpdate((msgs) => setMessages(msgs))
 
     return () => {
-      socket.off("user-joined");
-      socket.off("user-left");
-      socket.off("signal-offer");
-      socket.off("signal-answer");
-      socket.off("signal-candidate");
+      socket.off('user-joined', onUserJoined)
+      socket.off('user-left', onUserLeft)
+      socket.off('signal-offer', onSignalOffer)
+      socket.off('signal-answer', onSignalAnswer)
+      socket.off('signal-candidate', onSignalCandidate)
+      socket.off('screen-share:update', onScreenShareUpdate)
 
-      chatManager.clear();
-      mediaController.stopAll();
-      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-      screenStreamRef.current = null;
-      peerManager.cleanup();
-      socket.disconnect();
-    };
-  }, [realRoomId, currentUser]);
+      try {
+        chatManager.clear()
+      } catch (e) {
+        console.warn('chatManager clear failed', e)
+      }
 
+      try {
+        mediaController.stopAll()
+      } catch (e) {
+        console.warn('stopAll media failed', e)
+      }
+
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop())
+        screenStreamRef.current = null
+      }
+
+      try {
+        peerManager.cleanup()
+      } catch (e) {
+        console.warn('peerManager cleanup failed', e)
+      }
+
+      try {
+        socket.disconnect()
+      } catch (e) {
+        console.warn('socket disconnect failed', e)
+      }
+    }
+  }, [realRoomId, currentUser?.id])
+
+  /* ---------------- CONTROLS ---------------- */
   const handleToggleMic = () => {
-    const media = mediaControllerRef.current;
-    if (!media || !currentUser) return;
-    const enabled = media.toggleAudio();
-    setIsMuted(!enabled);
+    const media = mediaControllerRef.current
+    if (!media || !currentUser) return
+    const enabled = media.toggleAudio()
+    setIsMuted(!enabled)
     setParticipants((prev) =>
       prev.map((p) =>
         p.id === currentUser.id ? { ...p, isMuted: !enabled } : p
       )
-    );
-  };
+    )
+  }
 
   const handleToggleVideo = () => {
-    const media = mediaControllerRef.current;
-    if (!media || !currentUser) return;
-    const enabled = media.toggleVideo();
-    setIsVideoOn(enabled);
+    const media = mediaControllerRef.current
+    if (!media || !currentUser) return
+    const enabled = media.toggleVideo()
+    setIsVideoOn(enabled)
     setParticipants((prev) =>
       prev.map((p) =>
         p.id === currentUser.id ? { ...p, isVideoOn: enabled } : p
       )
-    );
-  };
+    )
+  }
 
   const stopScreenShare = () => {
-    const peerManager = peerManagerRef.current;
-    const cameraStream = cameraStreamRef.current;
-    if (!peerManager || !cameraStream) return;
-
-    const [camTrack] = cameraStream.getVideoTracks();
-    if (camTrack) {
-      peerManager.replaceVideoTrack(camTrack);
+    console.log('🛑 Stopping screen share');
+    const peerManager = peerManagerRef.current
+    const camStream = cameraStreamRef.current
+    if (!peerManager || !camStream) {
+      console.error('❌ Missing peerManager or camStream');
+      return;
     }
-    setLocalStream(cameraStream);
 
-    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-    screenStreamRef.current = null;
-    setIsScreenShare(false);
-  };
+    const [camTrack] = camStream.getVideoTracks()
+    if (!camTrack) {
+      console.error('❌ No camera video track');
+      return;
+    }
+
+    console.log('🔄 Replacing back to camera track');
+    peerManager.replaceVideoTrack(camTrack)
+
+    console.log('📹 Setting localStream back to camera');
+    setLocalStream(camStream)
+    setIsScreenShare(false)
+
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === currentUser!.id ? { ...p, isScreenSharing: false } : p
+      )
+    )
+
+    console.log('📡 Emitting screen-share:stop');
+    socket.emit('screen-share:stop', {
+      roomId: realRoomId,
+      userId: currentUser!.id,
+      socketId: socket.id,
+    })
+
+    if (screenStreamRef.current) {
+      console.log('🗑️ Stopping screen stream tracks');
+      screenStreamRef.current.getTracks().forEach((t) => t.stop())
+      screenStreamRef.current = null
+    }
+  }
 
   const handleToggleScreenShare = async () => {
+    const peerManager = peerManagerRef.current
+    const media = mediaControllerRef.current
+    if (!peerManager || !media) {
+      console.error('❌ Missing peerManager or media');
+      return;
+    }
+
     if (isScreenShare) {
-      stopScreenShare();
-      return;
+      console.log('🛑 Stopping screen share')
+      stopScreenShare()
+      return
     }
 
-    const media = mediaControllerRef.current;
-    const peerManager = peerManagerRef.current;
-    if (!media || !peerManager) return;
+    console.log('🎬 Starting screen share...')
+    const screenStream = await media.shareScreen()
+    if (!screenStream) {
+      console.error('❌ Failed to get screen stream')
+      return
+    }
 
-    const screenStream = await media.shareScreen();
-    if (!screenStream) return;
+    console.log('✅ Got screen stream:', {
+      id: screenStream.id,
+      tracks: screenStream.getTracks().map((t) => ({
+        kind: t.kind,
+        enabled: t.enabled,
+        readyState: t.readyState,
+        label: t.label,
+      })),
+    })
 
-    const [screenTrack] = screenStream.getVideoTracks();
+    const [screenTrack] = screenStream.getVideoTracks()
     if (!screenTrack) {
-      screenStream.getTracks().forEach((t) => t.stop());
-      return;
+      console.error('❌ No video track in screen stream')
+      return
     }
 
-    screenStreamRef.current = screenStream;
-    peerManager.replaceVideoTrack(screenTrack);
-    setLocalStream(screenStream);
-    setIsScreenShare(true);
+    screenStreamRef.current = screenStream
 
-    screenTrack.onended = () => stopScreenShare();
-  };
+    console.log('🔄 Replacing video track for peers...')
+    await peerManager.replaceVideoTrack(screenTrack)
+
+    console.log('📺 Updating local stream to screen stream')
+    setIsScreenShare(true)
+    
+    // ✅ CRITICAL: Set localStream to screenStream
+    setLocalStream(screenStream)
+    console.log('✅ Local stream updated to screen stream:', {
+      streamId: screenStream.id,
+      tracks: screenStream.getTracks().map(t => ({
+        kind: t.kind,
+        enabled: t.enabled,
+        readyState: t.readyState
+      }))
+    });
+
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === currentUser!.id ? { ...p, isScreenSharing: true } : p
+      )
+    )
+
+    console.log('📡 Emitting screen-share:start')
+    socket.emit('screen-share:start', {
+      roomId: realRoomId,
+      userId: currentUser!.id,
+      userName: currentUser!.name,
+      socketId: socket.id,
+    })
+
+    screenTrack.onended = () => {
+      console.log('🛑 Screen track ended')
+      stopScreenShare()
+    }
+  }
+
+  const participantsWithHost = participants.map((p) => ({
+    ...p,
+    isHost: hostId ? p.id === hostId : false,
+  }))
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
-
-      {/* ⭐ Popup góc phải dưới */}
       {popup && (
-        <div className="absolute bottom-4 right-4 bg-gray-800 px-4 py-3 rounded-lg shadow-lg text-white animate-fade-in">
-          {popup.type === "join"
+        <div className="absolute bottom-4 right-4 bg-gray-800 px-4 py-3 rounded-lg shadow-lg text-white animate-fade-in z-50">
+          {popup.type === 'join'
             ? `${popup.name} đã tham gia phòng`
             : `${popup.name} đã rời phòng`}
         </div>
@@ -343,10 +573,12 @@ export default function MeetingRoomPage() {
           <div className="flex-1 flex overflow-hidden">
             <div className="flex-1 relative">
               <VideoGrid
-                participants={participants}
+                participants={participantsWithHost}
                 localStream={localStream}
+                cameraStream={cameraStream}
                 remoteStreams={remoteStreams}
-                currentUserId={currentUser?.id ?? ""}
+                currentUserId={currentUser?.id ?? ''}
+                forceScreenFocus={participants.some((p) => p.isScreenSharing)}
               />
             </div>
 
@@ -356,7 +588,7 @@ export default function MeetingRoomPage() {
                   <ChatPanel
                     messages={messages}
                     onSendMessage={(msg) =>
-                      socket.emit("chat:send", {
+                      socket.emit('chat:send', {
                         roomId: realRoomId,
                         userId: currentUser!.id,
                         userName: currentUser!.name,
@@ -370,7 +602,7 @@ export default function MeetingRoomPage() {
 
                 {showParticipants && (
                   <ParticipantsPanel
-                    participants={participants}
+                    participants={participantsWithHost}
                     currentUserId={currentUser!.id}
                   />
                 )}
@@ -386,17 +618,22 @@ export default function MeetingRoomPage() {
             onToggleVideo={handleToggleVideo}
             onToggleScreenShare={handleToggleScreenShare}
             onToggleChat={() => {
-              setShowChat(!showChat);
-              setShowParticipants(false);
+              setShowChat((s) => !s)
+              setShowParticipants(false)
             }}
             onToggleParticipants={() => {
-              setShowParticipants(!showParticipants);
-              setShowChat(false);
+              setShowParticipants((s) => !s)
+              setShowChat(false)
             }}
-            onLeave={() => router.push("/")}
+            onLeave={() => {
+              try {
+                socket.emit('leave-room', { roomId: realRoomId })
+              } catch (e) {}
+              router.push('/')
+            }}
           />
         </>
       )}
     </div>
-  );
+  )
 }
