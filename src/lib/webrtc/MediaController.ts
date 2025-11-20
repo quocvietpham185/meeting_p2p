@@ -9,39 +9,50 @@ export class MediaController {
         video: true,
         audio: true,
       });
+      console.log('✅ Camera and mic initialized');
       return this.stream;
     } catch (error) {
-      console.error('Failed to get media stream:', error);
-      return null;
+      const err = error as Error;
+      console.warn('⚠️ Camera/mic permission denied:', err.message);
+      
+      // Try audio only
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: true,
+        });
+        console.log('✅ Audio-only initialized');
+        return this.stream;
+      } catch (audioError) {
+        console.warn('⚠️ Audio also denied');
+        return null;
+      }
     }
   }
 
   async shareScreen(): Promise<MediaStream | null> {
     try {
       console.log('🖥️ Requesting screen share...');
+      
       this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: 'always',
-          displaySurface: 'monitor', // or 'window', 'application'
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
+        video: true,
         audio: false,
       });
       
-      console.log('✅ Got screen stream:', {
+      console.log('✅ Screen stream obtained:', {
         id: this.screenStream.id,
         tracks: this.screenStream.getTracks().map(t => ({
           kind: t.kind,
+          label: t.label,
           enabled: t.enabled,
           readyState: t.readyState,
-          label: t.label,
-          settings: t.getSettings()
         }))
       });
       
       return this.screenStream;
     } catch (error) {
-      console.error('❌ Failed to share screen:', error);
+      const err = error as Error;
+      console.error('❌ Screen share failed:', err.message);
       return null;
     }
   }

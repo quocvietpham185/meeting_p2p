@@ -8,7 +8,8 @@ interface VideoGridProps {
   participants: Participant[];
   localStream: MediaStream | null;
   cameraStream: MediaStream | null;
-  remoteStreams: Record<string, MediaStream | undefined>;
+  remoteCameraStreams: Record<string, MediaStream>;
+  remoteScreenStreams: Record<string, MediaStream>;
   currentUserId: string;
   forceScreenFocus?: boolean;
 }
@@ -17,7 +18,8 @@ export default function VideoGrid({
   participants,
   localStream,
   cameraStream,
-  remoteStreams,
+  remoteCameraStreams,
+  remoteScreenStreams,
   currentUserId,
 }: VideoGridProps) {
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -29,8 +31,8 @@ export default function VideoGrid({
     console.log('🎥 VideoGrid useEffect:', {
       localStream: localStream?.id,
       cameraStream: cameraStream?.id,
-      remoteStreamsCount: Object.keys(remoteStreams).length,
-      remoteStreamKeys: Object.keys(remoteStreams)
+      remoteCameraCount: Object.keys(remoteCameraStreams).length,
+      remoteScreenCount: Object.keys(remoteScreenStreams).length,
     });
 
     // Set all video elements
@@ -44,13 +46,17 @@ export default function VideoGrid({
         targetStream = localStream;
       } else if (key === "local-cam") {
         targetStream = cameraStream;
+      } else if (key.startsWith("screen-")) {
+        // screen-socketId -> use remoteScreenStreams
+        const socketId = key.replace("screen-", "");
+        targetStream = remoteScreenStreams[socketId] ?? null;
       } else if (key.startsWith("cam-")) {
-        // Extract socketId from "cam-socketId"
+        // cam-socketId -> use remoteCameraStreams
         const socketId = key.replace("cam-", "");
-        targetStream = remoteStreams[socketId] ?? null;
+        targetStream = remoteCameraStreams[socketId] ?? null;
       } else {
-        // Regular remote stream
-        targetStream = remoteStreams[key] ?? null;
+        // Regular remote camera stream (backward compatibility)
+        targetStream = remoteCameraStreams[key] ?? null;
       }
 
       if (targetStream && videoEl.srcObject !== targetStream) {
@@ -65,7 +71,7 @@ export default function VideoGrid({
         }
       }
     });
-  }, [localStream, cameraStream, remoteStreams]);
+  }, [localStream, cameraStream, remoteCameraStreams, remoteScreenStreams]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -93,6 +99,7 @@ export default function VideoGrid({
     sharingUser: sharingUser?.name,
     sharingUserSocketId: sharingUser?.socketId,
     participantsCount: participants.length,
+    remoteScreenStreams: Object.keys(remoteScreenStreams),
   });
 
   /* ---------------------------------------------------
@@ -106,18 +113,19 @@ export default function VideoGrid({
     let screenRefKey: string = "";
     
     if (isLocalSharing) {
-      // Tôi đang share -> localStream đã là screen stream
+      // Tôi đang share -> localStream là screen preview
       screenRefKey = "local-screen";
       screenStream = localStream;
       console.log('📺 I am sharing, using localStream as screen');
     } else {
-      // Người khác đang share -> lấy remote stream của họ
-      screenRefKey = sharingUser.socketId ?? "";
-      screenStream = remoteStreams[screenRefKey] ?? null;
+      // Người khác đang share -> lấy remoteScreenStreams
+      screenRefKey = `screen-${sharingUser.socketId}`;
+      screenStream = remoteScreenStreams[sharingUser.socketId ?? ""] ?? null;
       console.log('📺 Remote user sharing:', {
-        socketId: screenRefKey,
+        socketId: sharingUser.socketId,
         hasStream: !!screenStream,
-        streamId: screenStream?.id
+        streamId: screenStream?.id,
+        availableScreenStreams: Object.keys(remoteScreenStreams)
       });
     }
 
@@ -132,7 +140,7 @@ export default function VideoGrid({
               }}
               autoPlay
               playsInline
-              muted={false} // Don't mute screen share to hear system audio if enabled
+              muted={false}
               className="w-full h-full object-contain"
               style={{ backgroundColor: '#000' }}
             />
@@ -170,32 +178,22 @@ export default function VideoGrid({
             let refKey: string = "";
             
             if (isLocal) {
-              // Tôi -> dùng cameraStream nếu tôi đang share, hoặc localStream nếu không
+              // Tôi -> luôn dùng cameraStream
               refKey = "local-cam";
-              stream = isLocalSharing ? cameraStream : localStream;
+              stream = cameraStream;
               console.log('📹 My camera in sidebar:', {
-                isSharing: isLocalSharing,
-                usingCameraStream: isLocalSharing,
-                hasStream: !!stream
+                hasStream: !!stream,
+                streamId: stream?.id
               });
             } else {
-              // Người khác
+              // Người khác -> dùng remoteCameraStreams
               refKey = `cam-${p.socketId}`;
-              
-              if (p.isScreenSharing) {
-                // Người này đang share -> remoteStream là screen, cần camera riêng
-                // ⚠️ Hiện tại chưa có cách lấy camera của người đang share
-                // Tạm thời không hiển thị hoặc hiển thị avatar
-                stream = null;
-                console.log('⚠️ Participant is sharing, no separate camera stream available');
-              } else {
-                // Người này không share -> remoteStream là camera
-                stream = remoteStreams[p.socketId ?? ""] ?? null;
-                console.log('📹 Remote camera:', {
-                  socketId: p.socketId,
-                  hasStream: !!stream
-                });
-              }
+              stream = remoteCameraStreams[p.socketId ?? ""] ?? null;
+              console.log('📹 Remote camera:', {
+                socketId: p.socketId,
+                hasStream: !!stream,
+                streamId: stream?.id
+              });
             }
 
             return (
@@ -281,7 +279,7 @@ export default function VideoGrid({
       {participants.map((p) => {
         const isLocal = p.id === currentUserId;
         const refKey = isLocal ? "local" : p.socketId ?? "";
-        const stream = refKey === "local" ? localStream : remoteStreams[refKey];
+        const stream = isLocal ? localStream : remoteCameraStreams[p.socketId ?? ""];
 
         return (
           <div

@@ -12,296 +12,373 @@ export class PeerManager {
   private localStream: MediaStream | null = null
   private cameraStream: MediaStream | null = null
   private screenStream: MediaStream | null = null
+  private screenSenders: Map<string, RTCRtpSender> = new Map()
 
   constructor(
-    private readonly iceServers: RTCIceServer[],
+    private readonly iceServers: RTCIceServer[], 
     private readonly events: PeerEvents = {}
   ) {}
 
-  /** Init camera+mic and set cameraStream */
-  async initLocalStream(): Promise<MediaStream> {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    })
-    this.cameraStream = stream
-    this.updateLocalStream(stream)
-    return stream
+  // 🔥 Create dummy audio track for connection establishment
+  private createDummyAudioTrack(): MediaStreamTrack {
+    const ctx = new AudioContext()
+    const oscillator = ctx.createOscillator()
+    const dst = ctx.createMediaStreamDestination()
+    oscillator.connect(dst)
+    oscillator.start()
+    const track = dst.stream.getAudioTracks()[0]
+    track.enabled = false // Mute it
+    return track
   }
 
-  /**
-   * Update local stream (camera or screen). This will:
-   * - set this.localStream
-   * - call onLocalStream callback
-   * - replace existing senders' tracks where possible
-   */
+  async initLocalStream(): Promise<MediaStream | null> {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      })
+      this.cameraStream = stream
+      this.localStream = stream
+      this.events.onLocalStream?.(this.localStream)
+      
+      console.log('🎥 Camera initialized successfully')
+      
+      // Add to existing peers
+      this.peers.forEach((pc, socketId) => {
+        try {
+          stream.getTracks().forEach((t) => pc.addTrack(t, stream))
+          console.log('✅ Added camera tracks to peer:', socketId)
+        } catch (err) {
+          const error = err as Error
+          console.warn('❌ addTrack failed for', socketId, error.message)
+        }
+      })
+      
+      return stream
+    } catch (err) {
+      const error = err as Error
+      console.warn('⚠️ Camera not available:', error.message)
+      
+      // 🔥 Create dummy stream to establish connection
+      const dummyAudio = this.createDummyAudioTrack()
+      const dummyStream = new MediaStream([dummyAudio])
+      this.localStream = dummyStream
+      
+      // 🔥 Add dummy track to existing peers
+      this.peers.forEach((pc, socketId) => {
+        try {
+          pc.addTrack(dummyAudio, dummyStream)
+          console.log('✅ Added dummy audio to peer:', socketId)
+        } catch (err) {
+          const error = err as Error
+          console.warn('❌ addTrack dummy failed for', socketId, error.message)
+        }
+      })
+      
+      console.log('✅ Created dummy audio stream for connection')
+      return null
+    }
+  }
+
   public updateLocalStream(stream: MediaStream) {
     this.localStream = stream
 
-    // keep cameraStream if we don't have one yet and this stream contains camera
     if (!this.cameraStream && stream.getVideoTracks().length > 0) {
       this.cameraStream = stream
     }
 
-    // If this stream looks like screen (only video and maybe no audio), keep as screenStream
-    // Heuristic: if it has video track but no audio track OR one track labelled like "Screen",
-    // we can choose to set screenStream — but we don't override cameraStream here.
-    const hasAudio = stream.getAudioTracks().length > 0
-    const hasVideo = stream.getVideoTracks().length > 0
-    if (hasVideo && !hasAudio) {
-      // likely a screen stream (displayMedia often has no audio)
-      this.screenStream = stream
-    }
-
     this.events.onLocalStream?.(stream)
 
-    // Replace tracks on existing peer connections (prefer replaceTrack)
-    this.peers.forEach((pc) => {
+    this.peers.forEach((pc, socketId) => {
       const senders = pc.getSenders()
 
-      // Audio
       const audioTrack = stream.getAudioTracks()[0]
       if (audioTrack) {
         const audioSender = senders.find((s) => s.track?.kind === 'audio')
-        if (audioSender) audioSender.replaceTrack(audioTrack).catch((e) => {
-          console.warn('replaceTrack audio failed', e)
-        })
-        else pc.addTrack(audioTrack, stream)
+        if (audioSender) {
+          audioSender.replaceTrack(audioTrack).catch((err) => {
+            const error = err as Error
+            console.warn('replaceTrack audio failed for', socketId, error.message)
+          })
+        } else {
+          try {
+            pc.addTrack(audioTrack, stream)
+          } catch (err) {
+            const error = err as Error
+            console.warn('addTrack audio fallback failed for', socketId, error.message)
+          }
+        }
       }
 
-      // Video
       const videoTrack = stream.getVideoTracks()[0]
       if (videoTrack) {
         const videoSender = senders.find((s) => s.track?.kind === 'video')
         if (videoSender) {
-          videoSender.replaceTrack(videoTrack).catch((e) => {
-            console.warn('replaceTrack video failed', e)
+          videoSender.replaceTrack(videoTrack).catch((err) => {
+            const error = err as Error
+            console.warn('replaceTrack video failed for', socketId, error.message)
           })
         } else {
           try {
             pc.addTrack(videoTrack, stream)
-          } catch (e) {
-            console.warn('pc.addTrack fallback failed', e)
+          } catch (err) {
+            const error = err as Error
+            console.warn('addTrack video fallback failed for', socketId, error.message)
           }
         }
       }
     })
   }
 
-  /** Create or return existing RTCPeerConnection for socketId */
   async createPeerConnection(socketId: string): Promise<RTCPeerConnection> {
     let pc = this.peers.get(socketId)
-    if (pc) return pc
+    if (pc) {
+      console.log('♻️ Reusing existing peer connection for:', socketId)
+      return pc
+    }
 
+    console.log('🔧 Creating NEW peer connection for:', socketId)
+    console.log('📊 Available streams:', {
+      hasCameraStream: !!this.cameraStream,
+      hasLocalStream: !!this.localStream,
+      hasScreenStream: !!this.screenStream,
+      localStreamTracks: this.localStream?.getTracks().length ?? 0,
+    })
+    
     pc = new RTCPeerConnection({ iceServers: this.iceServers })
     this.peers.set(socketId, pc)
 
-    // If we already have a localStream, add its tracks (initial attach)
-    if (this.localStream) {
-      try {
-        this.localStream.getTracks().forEach((t) => pc!.addTrack(t, this.localStream!))
-      } catch (e) {
-        // ignore addTrack errors
-        console.warn('addTrack initial failed', e)
+    // 🔥 Always attach at least dummy audio for connection
+    try {
+      if (this.cameraStream) {
+        console.log('📹 Attaching camera stream to new peer:', socketId)
+        this.cameraStream.getTracks().forEach((t) => {
+          try {
+            pc!.addTrack(t, this.cameraStream!)
+            console.log('✅ Added camera track:', t.kind, t.label)
+          } catch (err) {
+            const error = err as Error
+            console.warn('❌ Failed to add camera track:', error.message)
+          }
+        })
+      } else if (this.localStream) {
+        console.log('📹 Attaching local stream (maybe dummy) to new peer:', socketId)
+        this.localStream.getTracks().forEach((t) => {
+          try {
+            pc!.addTrack(t, this.localStream!)
+            console.log('✅ Added local track:', t.kind, t.label)
+          } catch (err) {
+            const error = err as Error
+            console.warn('❌ Failed to add local track:', error.message)
+          }
+        })
+      } else {
+        console.error('❌❌❌ NO STREAMS AVAILABLE! Connection will fail!')
       }
-    }
 
-    // Auto-negotiation handler (ensure offer is created when needed)
-    pc.onnegotiationneeded = async () => {
-      try {
-        console.log('📡 onnegotiationneeded -> creating offer for', socketId)
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        socket.emit('signal-offer', { to: socketId, from: socket.id, sdp: offer })
-      } catch (err) {
-        console.warn('❌ negotiationneeded error for', socketId, err)
+      if (this.screenStream) {
+        console.log('🖥️ Attaching screen stream to new peer:', socketId)
+        const screenTrack = this.screenStream.getVideoTracks()[0]
+        if (screenTrack) {
+          try {
+            const sender = pc.addTrack(screenTrack, this.screenStream)
+            this.screenSenders.set(socketId, sender)
+            console.log('✅ Added screen track')
+          } catch (err) {
+            const error = err as Error
+            console.warn('❌ addTrack screen failed for', socketId, error.message)
+          }
+        }
       }
+    } catch (err) {
+      const error = err as Error
+      console.warn('❌ initial addTrack error for new pc', socketId, error.message)
     }
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        socket.emit('signal-candidate', {
-          to: socketId,
-          from: socket.id,
-          candidate: event.candidate,
+        socket.emit('signal-candidate', { 
+          to: socketId, 
+          from: socket.id, 
+          candidate: event.candidate 
         })
       }
     }
 
     pc.ontrack = (event) => {
+      console.log('🎉 ontrack fired for:', socketId, {
+        streams: event.streams.length,
+        track: event.track.kind,
+        trackLabel: event.track.label,
+        trackId: event.track.id,
+      })
+      
       const [stream] = event.streams
       if (stream) {
+        console.log('📺 Stream received:', {
+          id: stream.id,
+          audioTracks: stream.getAudioTracks().length,
+          videoTracks: stream.getVideoTracks().length,
+          videoLabel: stream.getVideoTracks()[0]?.label,
+        })
         this.events.onRemoteStream?.(socketId, stream)
       }
     }
 
     pc.onconnectionstatechange = () => {
-      if (pc?.connectionState === 'disconnected' || pc?.connectionState === 'failed') {
+      console.log('🔌 Connection state for', socketId, ':', pc?.connectionState)
+      if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) {
+        console.log('❌ Peer disconnected:', socketId)
         this.events.onPeerDisconnected?.(socketId)
         try {
           pc.close()
-        } catch {}
+        } catch (err) {
+          // Ignore
+        }
         this.peers.delete(socketId)
+        this.screenSenders.delete(socketId)
       }
+    }
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('🧊 ICE state for', socketId, ':', pc?.iceConnectionState)
     }
 
     return pc
   }
 
-  /** Create offer to peer */
   async createOffer(socketId: string): Promise<void> {
+    console.log('📤 createOffer for:', socketId)
     const pc = await this.createPeerConnection(socketId)
+    
+    const senders = pc.getSenders()
+    console.log('📊 Current senders:', senders.map(s => ({
+      kind: s.track?.kind,
+      label: s.track?.label,
+      enabled: s.track?.enabled,
+    })))
+    
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
+    
+    console.log('📤 Offer created, sending to:', socketId)
     socket.emit('signal-offer', { to: socketId, from: socket.id, sdp: offer })
   }
 
-  /** Handle incoming offer (answer locally and send answer) */
   async handleOffer(from: string, sdp: RTCSessionDescriptionInit): Promise<void> {
+    console.log('📥 handleOffer from:', from)
     const pc = await this.createPeerConnection(from)
+    
     await pc.setRemoteDescription(new RTCSessionDescription(sdp))
     const answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
+    
+    console.log('📤 Sending answer to:', from)
     socket.emit('signal-answer', { to: from, from: socket.id, sdp: answer })
   }
 
-  /** Handle incoming answer */
   async handleAnswer(from: string, sdp: RTCSessionDescriptionInit): Promise<void> {
+    console.log('📥 handleAnswer from:', from)
     const pc = this.peers.get(from)
     if (pc) {
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp))
-      } catch (e) {
-        console.warn('setRemoteDescription(answer) failed', e)
+        console.log('✅ Answer set for:', from)
+      } catch (err) {
+        const error = err as Error
+        console.warn('❌ setRemoteDescription failed', error.message)
       }
     }
   }
 
-  /** Handle incoming ICE candidate */
   async handleCandidate(from: string, candidate: RTCIceCandidateInit): Promise<void> {
     const pc = this.peers.get(from)
     if (pc && candidate) {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate))
-      } catch (e) {
-        console.warn('addIceCandidate failed', e)
+        console.log('✅ ICE candidate added for:', from)
+      } catch (err) {
+        const error = err as Error
+        console.warn('❌ addIceCandidate failed', error.message)
       }
     }
   }
 
   toggleAudio(): boolean {
-    if (!this.localStream) return false
-    const audio = this.localStream.getAudioTracks()[0]
+    if (!this.cameraStream) return false
+    const audio = this.cameraStream.getAudioTracks()[0]
     if (audio) audio.enabled = !audio.enabled
     return audio?.enabled ?? false
   }
 
   toggleVideo(): boolean {
-    if (!this.localStream) return false
-    const video = this.localStream.getVideoTracks()[0]
+    if (!this.cameraStream) return false
+    const video = this.cameraStream.getVideoTracks()[0]
     if (video) video.enabled = !video.enabled
     return video?.enabled ?? false
   }
 
-  /**
-   * Replace the current outgoing video track (used for screen sharing).
-   * - newTrack: MediaStreamTrack from screen (or camera) to be used as outgoing video
-   */
-  public async replaceVideoTrack(newTrack: MediaStreamTrack) {
-    console.log('🔄 replaceVideoTrack called:', {
-      label: newTrack.label,
-      kind: newTrack.kind,
-      enabled: newTrack.enabled,
-    })
+public async addScreenStream(screenStream: MediaStream): Promise<void> {
+  this.screenStream = screenStream;
 
-    // Ensure localStream exists (create container if needed)
-    if (!this.localStream) this.localStream = new MediaStream()
+  const screenTrack = screenStream.getVideoTracks()[0];
+  if (!screenTrack) return;
 
-    // store screenStream (so we can restore camera later)
-    // If newTrack came from displayMedia (no audio), we store as screenStream
-    this.screenStream = new MediaStream([newTrack])
+  for (const [socketId, pc] of this.peers.entries()) {
+    const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
 
-    // remove old video tracks from localStream
-    const oldVideoTracks = this.localStream.getVideoTracks()
-    oldVideoTracks.forEach((t) => {
-      try {
-        this.localStream!.removeTrack(t)
-      } catch {}
-    })
-
-    // add the new track
-    try {
-      this.localStream.addTrack(newTrack)
-    } catch (e) {
-      console.warn('localStream.addTrack failed', e)
-    }
-
-    // notify UI
-    this.events.onLocalStream?.(this.localStream)
-
-    // Replace sender track for each peer; then ensure renegotiation
-    for (const [socketId, pc] of this.peers.entries()) {
-      try {
-        const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
-        if (sender) {
-          await sender.replaceTrack(newTrack)
-          console.log('🔁 replaced sender track for', socketId)
-        } else {
-          pc.addTrack(newTrack, this.localStream)
-        }
-
-        // create offer to renegotiate (some browsers need explicit offer)
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        socket.emit('signal-offer', { to: socketId, from: socket.id, sdp: offer })
-      } catch (err) {
-        console.warn('❌ Error replacing track / renegotiating for', socketId, err)
-      }
+    if (videoSender) {
+      console.log("🔄 replace camera → screen for peer:", socketId);
+      await videoSender.replaceTrack(screenTrack);
+      this.screenSenders.set(socketId, videoSender);
     }
   }
 
-  /** Get camera stream (useful for local sidebar while screen-sharing) */
-  getCameraStream(): MediaStream | null {
+  // Local UI preview cho màn hình
+  this.events.onLocalStream?.(screenStream);
+}
+
+
+
+  public async removeScreenStream(): Promise<void> {
+  const cameraTrack = this.cameraStream?.getVideoTracks()[0];
+
+  for (const [socketId, pc] of this.peers.entries()) {
+    const sender = this.screenSenders.get(socketId);
+
+    if (sender && cameraTrack) {
+      console.log("🔄 restore screen → camera for peer:", socketId);
+      await sender.replaceTrack(cameraTrack);
+    }
+  }
+
+  this.screenStream = null;
+  this.events.onLocalStream?.(this.cameraStream!);
+}
+
+
+  public getCameraStream(): MediaStream | null {
     return this.cameraStream
   }
 
-  /** Restore camera (call when stopping screen share): provide cameraTrack to replace */
-  public async restoreCameraTrack(cameraTrack: MediaStreamTrack) {
-    if (!this.localStream) this.localStream = new MediaStream()
-    // remove current video tracks
-    this.localStream.getVideoTracks().forEach((t) => {
-      try {
-        this.localStream!.removeTrack(t)
-      } catch {}
-    })
-    this.localStream.addTrack(cameraTrack)
-    this.events.onLocalStream?.(this.localStream)
-
-    // Replace on peers and renegotiate
-    for (const [socketId, pc] of this.peers.entries()) {
-      try {
-        const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
-        if (sender) await sender.replaceTrack(cameraTrack)
-        else pc.addTrack(cameraTrack, this.localStream)
-
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        socket.emit('signal-offer', { to: socketId, from: socket.id, sdp: offer })
-      } catch (e) {
-        console.warn('restoreCameraTrack failed for', socketId, e)
-      }
-    }
-  }
-
   cleanup(): void {
-    this.localStream?.getTracks().forEach((t) => t.stop())
-    this.cameraStream?.getTracks().forEach((t) => t.stop())
-    this.screenStream?.getTracks().forEach((t) => t.stop())
+    console.log('🧹 Cleanup - closing', this.peers.size, 'peers')
+    try {
+      this.localStream?.getTracks().forEach((t) => t.stop())
+      this.cameraStream?.getTracks().forEach((t) => t.stop())
+      this.screenStream?.getTracks().forEach((t) => t.stop())
+    } catch (err) {
+      // Ignore
+    }
+
     this.peers.forEach((pc) => {
       try {
         pc.close()
-      } catch {}
+      } catch (err) {
+        // Ignore
+      }
     })
     this.peers.clear()
+    this.screenSenders.clear()
   }
 }
