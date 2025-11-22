@@ -5,16 +5,20 @@ import {
   Home,
   History,
   Calendar,
-  Monitor,
-  Users,
   Settings,
   LogOut,
+  LogIn,
 } from 'lucide-react';
-import React from 'react';
-import Swal from 'sweetalert2';
+
+import React, { useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
-import axios from 'axios';
 import api from '@/lib/api';
+
+// Popup Notification (toast)
+import NotificationPopup from '@/components/common/NotificationPopup';
+
+// Confirm Dialog (SweetAlert style)
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 interface NavItem {
   id: string;
@@ -32,7 +36,6 @@ const navItems: NavItem[] = [
   { id: 'home', label: 'Trang chủ', icon: <Home size={20} />, href: '/' },
   { id: 'history', label: 'Lịch sử', icon: <History size={20} />, href: '/history' },
   { id: 'schedule', label: 'Lịch', icon: <Calendar size={20} />, href: '/schedule' },
-  { id: 'devices', label: 'Thiết bị', icon: <Monitor size={20} />, href: '/devices' },
   { id: 'settings', label: 'Cài đặt', icon: <Settings size={20} />, href: '/setting' },
 ];
 
@@ -40,92 +43,135 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const activeItem = navItems.find((item) => item.href === pathname)?.id || 'home';
+  // State popup toast
+  const [popupOpen, setPopupOpen] = useState(false);
+  const [popupType, setPopupType] = useState<'success' | 'error' | 'warning' | 'info' | 'loading'>('success');
+  const [popupMessage, setPopupMessage] = useState('');
 
+  // State confirm dialog
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  const showPopup = (
+    type: 'success' | 'error' | 'warning' | 'info' | 'loading',
+    message: string
+  ) => {
+    setPopupType(type);
+    setPopupMessage(message);
+    setPopupOpen(true);
+  };
+
+  const activeItem =
+    navItems.find((item) => item.href === pathname)?.id || 'home';
+
+  // Check login từ cookie
+  const isLoggedIn = useMemo(() => {
+    return !!Cookies.get('token');
+  }, [pathname]);
+
+  // Điều hướng menu
   const handleClick = (item: NavItem) => {
     router.push(item.href);
     onNavigate?.(item.id);
   };
 
-  // 🧠 Hàm đăng xuất
+  const handleLogin = () => {
+    router.push('/auth/signin');
+  };
+
   const handleLogout = async () => {
-  Swal.fire({
-    title: 'Xác nhận đăng xuất?',
-    text: 'Bạn có chắc muốn thoát khỏi tài khoản?',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Đăng xuất',
-    cancelButtonText: 'Hủy',
-    reverseButtons: true,
-  }).then(async (result) => {
-    if (result.isConfirmed) {
-      try {
-        // ✅ Gọi API logout để server xóa refresh_token
-        await api.post('/auth/logout', {}, { withCredentials: true })
+  try {
+    // 🚀 Gọi API bình thường
+    await api.post('/auth/logout', {}, { withCredentials: true });
 
-        // ✅ Xóa access token FE (nếu bạn có lưu)
-        Cookies.remove('token', { path: '/' })
+    // 🗑 Xóa token FE
+    Cookies.remove('token', { path: '/' });
 
-        // 🔁 Điều hướng về trang đăng nhập
-        router.push('/auth/signin')
+    // 🔒 Đóng dialog ngay lập tức
+    setConfirmLogout(false);
 
-        // ✅ Thông báo thành công
-        Swal.fire({
-          icon: 'success',
-          title: 'Đã đăng xuất',
-          showConfirmButton: false,
-          timer: 1200,
-        })
-      } catch (err) {
-        console.error('Logout error:', err)
-        Swal.fire({
-          icon: 'error',
-          title: 'Lỗi đăng xuất',
-          text: 'Không thể đăng xuất, vui lòng thử lại!',
-        })
-      }
-    }
-  })
-}
+    // 🔔 Báo thành công
+    showPopup('success', 'Đăng xuất thành công');
+
+    // ♻ Refresh lại trang để sidebar cập nhật trạng thái
+    router.refresh();
+  } catch (err) {
+    console.error(err);
+    showPopup('error', 'Đăng xuất thất bại, vui lòng thử lại!');
+  }
+};
+
 
   return (
-    <aside className="w-56 bg-white border-r border-gray-200 flex flex-col h-screen">
-      {/* Header */}
-      <div className="p-4 flex items-center gap-2">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-sm">M</span>
+    <>
+      {/* Toast Notification */}
+      <NotificationPopup
+        open={popupOpen}
+        type={popupType}
+        message={popupMessage}
+        onClose={() => setPopupOpen(false)}
+      />
+
+      {/* Confirm Logout Dialog */}
+      <ConfirmDialog
+        open={confirmLogout}
+        title="Đăng xuất?"
+        message="Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?"
+        type="warning"
+        confirmText="Đăng xuất"
+        cancelText="Hủy"
+        onConfirm={handleLogout}
+        onCancel={() => setConfirmLogout(false)}
+      />
+
+      {/* Sidebar */}
+      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col h-screen">
+        {/* Header */}
+        <div className="p-4 flex items-center gap-2">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">M</span>
+          </div>
+          <span className="font-bold text-gray-900 text-lg">MeetHub</span>
         </div>
-        <span className="font-bold text-gray-900 text-lg">MeetHub</span>
-      </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 px-2 py-4">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => handleClick(item)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors ${
-              activeItem === item.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            {item.icon}
-            <span className="text-sm font-medium">{item.label}</span>
-          </button>
-        ))}
-      </nav>
+        {/* Menu */}
+        <nav className="flex-1 px-2 py-4">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleClick(item)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors ${
+                activeItem === item.id
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {item.icon}
+              <span className="text-sm font-medium">{item.label}</span>
+            </button>
+          ))}
+        </nav>
 
-      {/* Logout */}
-      <div className="p-4 border-t border-gray-200">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-        >
-          <LogOut size={20} />
-          <span className="text-sm font-medium">Đăng xuất</span>
-        </button>
-      </div>
-    </aside>
+        {/* Login / Logout */}
+        <div className="p-4 border-t border-gray-200">
+          {isLoggedIn ? (
+            <button
+              onClick={() => setConfirmLogout(true)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <LogOut size={20} />
+              <span className="text-sm font-medium">Đăng xuất</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleLogin}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            >
+              <LogIn size={20} />
+              <span className="text-sm font-medium">Đăng nhập</span>
+            </button>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }

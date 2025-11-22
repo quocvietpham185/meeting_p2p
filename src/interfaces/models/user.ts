@@ -5,9 +5,7 @@ export interface UserProfile {
   avatar: string;
 }
 
-export interface SecuritySettings {
-  twoFactorEnabled: boolean;
-}
+
 
 export interface ConnectedAccount {
   id: string;
