@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Button from '@/components/common/Button'
 import EditText from '@/components/common/EditText'
@@ -25,10 +25,40 @@ export default function SignInPage() {
     rememberMe: false,
   })
 
-  const [message, setMessage] = useState('')
+  const [errors, setErrors] = useState({
+    email: '',
+    password: '',
+    general: '',
+  })
+  const [successMessage, setSuccessMessage] = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  // 🔥 Force reset loading khi có lỗi
+  useEffect(() => {
+    if (errors.email || errors.password || errors.general) {
+      console.log('🔄 Errors detected, force reset loading')
+      setEmailLoading(false)
+      setGoogleLoading(false)
+    }
+  }, [errors])
+
+  // 🔥 Safety timeout: Force reset loading sau 5 giây
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+    if (emailLoading || googleLoading) {
+      console.log('⏰ Starting safety timeout')
+      timer = setTimeout(() => {
+        console.log('⏰ Safety timeout triggered - force reset loading')
+        setEmailLoading(false)
+        setGoogleLoading(false)
+      }, 5000)
+    }
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [emailLoading, googleLoading])
 
   const handleInputChange =
     (field: keyof FormData) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,17 +70,72 @@ export default function SignInPage() {
         ...prev,
         [field]: value,
       }))
+      
+      // Clear errors khi user nhập lại
+      if (field === 'email' || field === 'password') {
+        setErrors((prev) => ({
+          ...prev,
+          [field]: '',
+          general: '',
+        }))
+      }
     }
+
+  // Validate form
+  const validateForm = () => {
+    const newErrors = {
+      email: '',
+      password: '',
+      general: '',
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Vui lòng nhập email'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Email không hợp lệ'
+    }
+
+    if (!formData.password.trim()) {
+      newErrors.password = 'Vui lòng nhập mật khẩu'
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
+    }
+
+    setErrors(newErrors)
+    return !newErrors.email && !newErrors.password
+  }
 
   // 🟦 Đăng nhập bằng email
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (googleLoading) return // không cho đăng nhập nếu Google đang load
+    
+    console.log('🔵 handleSignIn called', { emailLoading, googleLoading })
+    
+    // Nếu đang loading thì không cho submit
+    if (googleLoading || emailLoading) {
+      console.log('⛔ Blocked: already loading')
+      return
+    }
 
+    // Clear messages trước
+    setErrors({ email: '', password: '', general: '' })
+    setSuccessMessage('')
+
+    // Validate - nếu fail thì return luôn, KHÔNG set loading
+    if (!validateForm()) {
+      console.log('⚠️ Validation failed')
+      return
+    }
+
+    console.log('✅ Starting login...')
+    // Chỉ set loading khi validate pass
     setEmailLoading(true)
-    setMessage('')
+    
     try {
-      const res = await api.post('/auth/signin', formData)
+      // 🔥 Dùng axios trực tiếp để tránh interceptor
+      const res = await axios.post('http://localhost:5000/api/auth/signin', formData)
+
+      console.log('📥 Login response:', res.data)
 
       // ✅ Lưu token vào cookie
       Cookies.set('token', res.data.data.token, {
@@ -61,40 +146,92 @@ export default function SignInPage() {
       })
 
       // ✅ Thông báo
-      setMessage('Đăng nhập thành công!')
+      setSuccessMessage('Đăng nhập thành công!')
+      
+      // Reset loading trước khi redirect
+      setEmailLoading(false)
 
       // ✅ Chuyển hướng
       setTimeout(() => router.push('/'), 500)
     } catch (error: unknown) {
-      console.error('Sign In Error:', error)
+      console.log('❌ Login error caught:', error)
+      
+      // 🔥 QUAN TRỌNG: Reset loading NGAY khi có lỗi
+      setEmailLoading(false)
 
       if (axios.isAxiosError(error)) {
-        setMessage(
-          error.response?.data?.message || 'Email hoặc mật khẩu không đúng'
-        )
+        const status = error.response?.status
+        const serverMessage = error.response?.data?.message
+
+        // Xử lý các mã lỗi cụ thể
+        if (status === 401) {
+          // Sai mật khẩu - hiển thị ở field password
+          setErrors((prev) => ({
+            ...prev,
+            password: 'Mật khẩu không chính xác',
+          }))
+        } else if (status === 404) {
+          setErrors((prev) => ({
+            ...prev,
+            email: 'Email này chưa được đăng ký',
+          }))
+        } else if (status === 400) {
+          // Có thể là lỗi validation từ server
+          if (serverMessage?.toLowerCase().includes('email')) {
+            setErrors((prev) => ({
+              ...prev,
+              email: serverMessage,
+            }))
+          } else if (serverMessage?.toLowerCase().includes('password')) {
+            setErrors((prev) => ({
+              ...prev,
+              password: serverMessage,
+            }))
+          } else {
+            setErrors((prev) => ({
+              ...prev,
+              general: serverMessage || 'Thông tin đăng nhập không hợp lệ',
+            }))
+          }
+        } else {
+          setErrors((prev) => ({
+            ...prev,
+            general: serverMessage || 'Đăng nhập thất bại, vui lòng thử lại',
+          }))
+        }
       } else if (error instanceof Error) {
-        setMessage(error.message)
+        setErrors((prev) => ({
+          ...prev,
+          general: error.message,
+        }))
       } else {
-        setMessage('Đăng nhập thất bại, vui lòng thử lại!')
+        setErrors((prev) => ({
+          ...prev,
+          general: 'Đã có lỗi xảy ra, vui lòng thử lại sau',
+        }))
       }
-    } finally {
-      setEmailLoading(false)
     }
+    
+    console.log('🔚 End of handleSignIn')
   }
 
   // 🟥 Đăng nhập bằng Google
   const handleGoogleSignIn = async () => {
-    if (emailLoading) return // không cho đăng nhập nếu đang load email
+    if (emailLoading) return
 
     setGoogleLoading(true)
-    setMessage('')
+    setErrors({ email: '', password: '', general: '' })
+    setSuccessMessage('')
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500))
-      setMessage('Google Sign-In thành công!')
+      setSuccessMessage('Google Sign-In thành công!')
       router.push('/')
     } catch (error) {
       console.error('Google Sign-In Error:', error)
-      setMessage('Đăng nhập Google thất bại!')
+      setErrors((prev) => ({
+        ...prev,
+        general: 'Đăng nhập Google thất bại!',
+      }))
     } finally {
       setGoogleLoading(false)
     }
@@ -148,8 +285,14 @@ export default function SignInPage() {
                   placeholder="Nhập email của bạn"
                   value={formData.email}
                   onChange={handleInputChange('email')}
-                  className="w-full"
+                  className={`w-full ${errors.email ? 'border-red-500' : ''}`}
                 />
+                {errors.email && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span>⚠️</span>
+                    {errors.email}
+                  </p>
+                )}
               </div>
 
               {/* Password */}
@@ -163,7 +306,7 @@ export default function SignInPage() {
                     placeholder="Nhập mật khẩu"
                     value={formData.password}
                     onChange={handleInputChange('password')}
-                    className="w-full"
+                    className={`w-full ${errors.password ? 'border-red-500' : ''}`}
                   />
                   <button
                     type="button"
@@ -173,7 +316,33 @@ export default function SignInPage() {
                     {showPassword ? '🙈' : '👁️'}
                   </button>
                 </div>
+                {errors.password && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span>⚠️</span>
+                    {errors.password}
+                  </p>
+                )}
               </div>
+
+              {/* Success Message */}
+              {successMessage && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-600 flex items-center gap-2">
+                    <span className="text-lg">✅</span>
+                    {successMessage}
+                  </p>
+                </div>
+              )}
+
+              {/* General Error - nếu không có lỗi cụ thể ở field */}
+              {errors.general && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600 flex items-center gap-2">
+                    <span className="text-lg">❌</span>
+                    {errors.general}
+                  </p>
+                </div>
+              )}
 
               {/* Remember + Forgot */}
               <div className="flex justify-between items-center text-sm">
@@ -210,19 +379,6 @@ export default function SignInPage() {
                 className="w-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
               />
             </div>
-
-            {/* Message */}
-            {message && (
-              <p
-                className={`mt-4 text-center text-sm ${
-                  message.includes('thành công')
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {message}
-              </p>
-            )}
 
             {/* Sign Up Link */}
             <div className="text-center mt-6">

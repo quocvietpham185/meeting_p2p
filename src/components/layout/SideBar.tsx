@@ -79,27 +79,24 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   };
 
   const handleLogout = async () => {
-  try {
-    // 🚀 Gọi API bình thường
-    await api.post('/auth/logout', {}, { withCredentials: true });
+    try {
+      // 🚀 Gọi API logout
+      await api.post('/auth/logout', {}, { withCredentials: true });
 
-    // 🗑 Xóa token FE
-    Cookies.remove('token', { path: '/' });
+      // 🗑 Xóa token FE
+      Cookies.remove('token', { path: '/' });
 
-    // 🔒 Đóng dialog ngay lập tức
-    setConfirmLogout(false);
+      // 🔒 Đóng dialog ngay lập tức
+      setConfirmLogout(false);
 
-    // 🔔 Báo thành công
-    showPopup('success', 'Đăng xuất thành công');
-
-    // ♻ Refresh lại trang để sidebar cập nhật trạng thái
-    router.refresh();
-  } catch (err) {
-    console.error(err);
-    showPopup('error', 'Đăng xuất thất bại, vui lòng thử lại!');
-  }
-};
-
+      // ➡️ Chuyển về trang đăng nhập
+      router.push('/auth/signin');
+    } catch (err) {
+      console.error(err);
+      setConfirmLogout(false);
+      showPopup('error', 'Đăng xuất thất bại, vui lòng thử lại!');
+    }
+  };
 
   return (
     <>
