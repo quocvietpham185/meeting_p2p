@@ -132,8 +132,8 @@ export default function SignInPage() {
     setEmailLoading(true)
     
     try {
-      // 🔥 Dùng axios trực tiếp để tránh interceptor
-      const res = await axios.post('http://localhost:5000/api/auth/signin', formData)
+      // 🔥 Dùng api trực tiếp để tránh interceptor
+      const res = await api.post('/auth/signin', formData)
 
       console.log('📥 Login response:', res.data)
 
